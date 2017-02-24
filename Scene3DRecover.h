@@ -52,6 +52,8 @@ public:
 	void getFilePaths(string&, string&);
 	void recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, string& img1Name, string& img2Name, CameraModel& cam1, CameraModel& cam2, SIFTFileLoader& sfl1, SIFTFileLoader& sfl2);
 	void getMatchesSIFTLoader(SIFTFileLoader& sfl1, SIFTFileLoader& sfl2, vector<DMatch>& outMatch);
+	void getMatchesSIFTLoader2(SIFTFileLoader& sfl1, SIFTFileLoader& sfl2, vector<DMatch>& outMatch);
+	Point2f transform(Mat &H, Point2f srcp);
 	Scene3DRecover();
 	~Scene3DRecover();
 

@@ -36,6 +36,6 @@ public:
 
 namespace SIFTHandle{
 	void updateSIFTfolder(string& imgFolder, string& maskFolder, string& tgtFolder, vector<SIFTFileLoader>& out_AllSFL);
-	void updateSIFTfolder(string& imgFolder, string& maskFolder, string& tgtFolder);
+	void updateSIFTfolder(string& imgFolder, string& maskFolder, string& fgFolder, string& bgFolder);
 }
 

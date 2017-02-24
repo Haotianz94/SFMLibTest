@@ -19,6 +19,17 @@ public:
 	double focallength; 
 	double distortX;
 	double distortY;
+
+	CameraModel getMedian(CameraModel& cam)
+	{
+		CameraModel newCM;
+		newCM.rotation = (rotation + cam.rotation) / 2;
+		newCM.translation = (translation + cam.translation) / 2;
+		newCM.focallength = (focallength + cam.focallength) /2;
+		newCM.distortX = (distortX + cam.distortX) / 2;
+		newCM.distortY = (distortY + cam.distortY) / 2;
+		return newCM;
+	}
 };
 
 struct FeatureOneView

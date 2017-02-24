@@ -11,10 +11,11 @@
 
 int main()
 {	
-	StitchSolver solver;
+	StitchSolver solver("data2", "001");
 	//solver.prepareForBundler();
 	solver.loadReconstruction();
-	solver.testWarping(0);
+	solver.warpFgHomo();
+	//solver.testWarping(0);
 	//solver.test();
 
 	/*

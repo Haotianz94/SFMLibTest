@@ -78,8 +78,16 @@ void SIFTFileLoader::removeSIFTOutofMask(cv::Mat& mask, string& newfileName)
 	ifInMask.resize(siftNum);
 	for (int i = 0; i < siftNum; i++)
 	{
-		ifInMask[i] = false; 
-		if (mask.at<uchar>(int(allFeatsAbs[i].pos.y), int(allFeatsAbs[i].pos.x)) > 127)
+		int x = allFeatsAbs[i].pos.x;
+		int y = allFeatsAbs[i].pos.y;
+		if(x < 0 || x > mask.cols-1 || y < 0 || y > mask.rows-1)
+		{
+			ifInMask[i] = false;
+			continue;
+		}
+
+		ifInMask[i] = false;
+		if (mask.at<uchar>(y, x) > 127)
 		{
 			ifInMask[i] = true;
 			count++;
@@ -140,8 +148,16 @@ void SIFTFileLoader::removeSIFTinMask(cv::Mat& mask, string& newfileName)
 	ifInMask.resize(siftNum);
 	for (int i = 0; i < siftNum; i++)
 	{
+		int x = allFeatsAbs[i].pos.x;
+		int y = allFeatsAbs[i].pos.y;
+		if(x < 0 || x > mask.cols-1 || y < 0 || y > mask.rows-1)
+		{
+			ifInMask[i] = true;
+			continue;
+		}
+		
 		ifInMask[i] = false;
-		if (mask.at<uchar>(int(allFeatsAbs[i].pos.y), int(allFeatsAbs[i].pos.x)) > 127)
+		if (mask.at<uchar>(y, x) > 127)
 			ifInMask[i] = true;
 		else
 			count++;
@@ -223,11 +239,14 @@ int main()
 	return 0;
 	}*/
 
-void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string& tgtFolder)
+void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string& fgFolder, string& bgFolder)
 {
-		if (!boost::filesystem::exists(tgtFolder))
-			boost::filesystem::create_directories(tgtFolder);
-		vector<string> imgNameList, siftNameList, maskNameList, tgtNameList, tgtSiftList, basenameList;
+		if (!boost::filesystem::exists(fgFolder))
+			boost::filesystem::create_directories(fgFolder);
+		if (!boost::filesystem::exists(bgFolder))
+			boost::filesystem::create_directories(bgFolder);
+		vector<string> imgNameList, siftNameList, maskNameList, basenameList,
+			bgSiftList, bgNameList, fgSiftList, fgNameList;
 		
 
 		//missing code for iterate the two folders.
@@ -268,23 +287,31 @@ void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string&
 
 		}
 		int fileNum = imgNameList.size();
-		tgtNameList.resize(fileNum);
-		tgtSiftList.resize(fileNum);
+		bgNameList.resize(fileNum);
+		bgSiftList.resize(fileNum);
+		fgNameList.resize(fileNum);
+		fgSiftList.resize(fileNum);
 		for (int i = 0; i < fileNum; i++)
 		{
 			cv::Mat img = cv::imread(imgNameList[i], 1);
 			cv::Mat mask = cv::imread(maskNameList[i], 0);
 
 			SIFTFileLoader sfl(siftNameList[i]);
-			tgtSiftList[i] = tgtFolder + basenameList[i].substr(0, basenameList[i].length()-4) + string(".sift");
-			tgtNameList[i] = tgtFolder + basenameList[i];
+			bgSiftList[i] = bgFolder + string("\\") + basenameList[i].substr(0, basenameList[i].length()-4) + string(".sift");
+			bgNameList[i] = bgFolder + string("\\") + basenameList[i];
+			fgSiftList[i] = fgFolder + string("\\") + basenameList[i].substr(0, basenameList[i].length()-4) + string(".sift");
+			fgNameList[i] = fgFolder + string("\\") + basenameList[i];
 
-			REPORT(tgtSiftList[i]);
-			REPORT(siftNameList[i]);
-			REPORT(tgtNameList[i]);
-			sfl.removeSIFTinMask(mask, tgtSiftList[i]);
-			sfl.removeSIFTOutofMask(mask, siftNameList[i]);
-			imwrite(tgtNameList[i], img);
+
+			REPORT(bgSiftList[i]);
+			REPORT(bgNameList[i]);
+			REPORT(fgSiftList[i]);
+			REPORT(fgNameList[i]);
+
+			//sfl.removeSIFTinMask(mask, bgSiftList[i]);
+			sfl.removeSIFTOutofMask(mask, fgSiftList[i]);
+			//imwrite(bgNameList[i], img);
+			imwrite(fgNameList[i], img);
 			
 			//tgtNameList[i] = tgtFolder + boost::filesystem::basename(imgNameList[i]) + string(".jpg");
 			string tmpShowName = boost::lexical_cast<string>(i)+string(".jpg");
