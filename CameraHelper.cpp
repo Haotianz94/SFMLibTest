@@ -1,4 +1,6 @@
 #include "CameraHelper.h"
+//Test sync
+//Test sync
 
 void CameraHelper::changeCoordinate(cv::Point2f& pos, cv::Point2f& center)
 {
