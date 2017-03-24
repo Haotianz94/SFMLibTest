@@ -25,7 +25,9 @@ void Scene3DRecover::getForeGround3DAllFrames()
 			allSiftsCam1[id1], allSiftsCam2[id2]);
 		
 		allForeGroundScenePoints.push_back(ScnPoints);
-		break;//*************
+		
+		cout << "Recover Foreground 3D Frame Pair: " << i << endl;
+		//break;//*************
 	}
 }
 
@@ -175,17 +177,15 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, st
 	cv::Mat img1 = imread(img1Name, 1);
 	cv::Mat img2 = imread(img2Name, 1);
 
-	/*
-	for(auto& pos: sfl1.allFeatsAbs)
-		circle(img1, pos.pos, 2, Scalar(255, 0, 0), -1);
-	for(auto& pos: sfl2.allFeatsAbs)
-		circle(img2, pos.pos, 2, Scalar(255, 0, 0), -1);
-	imshow(img1Name, img1);
-	imshow(img2Name, img2);
-	waitKey(0);
-	*/
-
 	vector<DMatch> matchedFeatures;
+	//get foreground feature matches from feature distance
+	getMatchesSIFTLoader(sfl1, sfl2, matchedFeatures);
+
+	//get foreground feature matches from Ransac
+	//getMatchesSIFTLoader_Ransac(sfl1, sfl2, matchedFeatures);
+
+	//draw foreground feature matches  
+	/*
 	vector<KeyPoint> kp1, kp2;
 	for(auto& pos : sfl1.allFeatsAbs)
 	{
@@ -199,13 +199,14 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, st
 		kp.pt = pos.pos;
 		kp2.push_back(kp);
 	}
-	getMatchesSIFTLoader(sfl1, sfl2, matchedFeatures);
+
 	Mat out;
 	drawMatches(img1, kp1, img2, kp2, matchedFeatures, out);
 	imwrite("match.jpg", out);
 	resize(out, out, cvSize(out.cols/2, out.rows/2));
 	imshow("out", out);
 	waitKey(0);
+	*/
 
 	//cluster using meanshift
 	/*
@@ -296,6 +297,9 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, st
 		scnPoint.img1Name = img1Name;
 		scnPoint.img2Name = img2Name;
 		out_ScnPoints.push_back(scnPoint);
+		
+		//draw magical match
+		/*
 		cv::Scalar clr(rand() % 255, rand() % 155 + 100, rand() % 255);
 		cv::circle(img1, sfl1.allFeatsAbs[id1].pos, 2, clr, 2, 8, 0);
 		cv::circle(img2, sfl2.allFeatsAbs[id2].pos, 2, clr, 2, 8, 0);
@@ -312,15 +316,15 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, st
 			fontScale, thickness, &baseline);
 
 		// then put the text itself
-		//putText(img1, t, sfl1.allFeatsAbs[id1].pos, fontFace, fontScale,
-		//	Scalar::all(255), thickness, 8);
-		//cout << img1Name << endl << p1.x << ", " << p1.y << endl
-		//	<< img2Name << endl << p2.x << ", " << p2.y << endl;
-
+		putText(img1, t, sfl1.allFeatsAbs[id1].pos, fontFace, fontScale,
+			Scalar::all(255), thickness, 8);
+		cout << img1Name << endl << p1.x << ", " << p1.y << endl
+			<< img2Name << endl << p2.x << ", " << p2.y << endl;
+		*/
 	}
 	//cv::imshow("1", img1);
 	//cv::imshow("2", img2);
-	cv::waitKey(-1);
+	//cv::waitKey(-1);
 }
 
 void Scene3DRecover::getMatchesSIFTLoader(SIFTFileLoader& sfl1, SIFTFileLoader& sfl2, vector<DMatch>& outMatch)
@@ -369,7 +373,7 @@ void Scene3DRecover::getMatchesSIFTLoader(SIFTFileLoader& sfl1, SIFTFileLoader& 
 	}
 }
 
-void Scene3DRecover::getMatchesSIFTLoader2(SIFTFileLoader& sfl1, SIFTFileLoader& sfl2, vector<DMatch>& outMatch)
+void Scene3DRecover::getMatchesSIFTLoader_Ransac(SIFTFileLoader& sfl1, SIFTFileLoader& sfl2, vector<DMatch>& outMatch)
 {
 	vector<DMatch> matches;
 	Ptr<DescriptorMatcher> descriptor_matcher = DescriptorMatcher::create("BruteForce");//´´½¨ÌØÕ÷Æ¥ÅäÆ÷  

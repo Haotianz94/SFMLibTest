@@ -15,6 +15,9 @@ public:
 	void loadReconstruction();
 	void warpFgHomo();
 
+	cv::Mat warpOnMesh(int, bool);
+	void warpOnMesh();
+	
 	void testWarping(int);
 	void testWarping_middle(int);
 	void test();
@@ -27,6 +30,7 @@ private:
 
 	std::string oriFolder;
 	std::string maskFolder;
+	std::string outFolder;
 	std::string siftMaskResFolder;
 	std::string fgFolder;
 	std::string bgFolder;

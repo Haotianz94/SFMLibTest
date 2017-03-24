@@ -308,9 +308,9 @@ void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string&
 			REPORT(fgSiftList[i]);
 			REPORT(fgNameList[i]);
 
-			//sfl.removeSIFTinMask(mask, bgSiftList[i]);
+			sfl.removeSIFTinMask(mask, bgSiftList[i]);
 			sfl.removeSIFTOutofMask(mask, fgSiftList[i]);
-			//imwrite(bgNameList[i], img);
+			imwrite(bgNameList[i], img);
 			imwrite(fgNameList[i], img);
 			
 			//tgtNameList[i] = tgtFolder + boost::filesystem::basename(imgNameList[i]) + string(".jpg");

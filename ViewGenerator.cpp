@@ -12,6 +12,8 @@ void ViewGenerator::getNewFeaturesPos(CameraModel& newViewCM)
 		tgtPoints.push_back(pos2d);
 	}
 
+	//draw feature 2D for 2 old views and 1 new view 
+	/*
 	Mat img(FrameH, FrameW, CV_8UC3, Scalar(255, 255, 255));
 	for(unsigned i = 0; i < tgtPoints.size(); i++)
 	{ 
@@ -22,6 +24,7 @@ void ViewGenerator::getNewFeaturesPos(CameraModel& newViewCM)
 		circle(img, warp(tgtPoints_real[i]), 1, Scalar(255, 0, 0), -1);
 	imshow("trans", img);
 	waitKey(0);
+	*/
 }
 
 void ViewGenerator::getNewMesh()
@@ -29,6 +32,8 @@ void ViewGenerator::getNewMesh()
 	ASAPSolver asap(FrameW, FrameH, GridX, GridY);
 	asap.solve(oriPoints, tgtPoints, this->deformedMesh);
 
+	//draw new Mesh
+	/*
 	Mat newMesh(FrameH, FrameW, CV_8UC3, Scalar(255, 255, 255));
 	for(int y = 0; y < deformedMesh.rows; y++)
 		for(int x = 0; x < deformedMesh.cols; x++)
@@ -38,7 +43,7 @@ void ViewGenerator::getNewMesh()
 		}
 	imshow("newMesh", newMesh);
 	waitKey(0);
-
+	*/
 }
 
 ViewGenerator::ViewGenerator()
@@ -55,7 +60,8 @@ ViewGenerator::ViewGenerator(vector<Point2f>& oriPoints2D, vector<Point2f>& tgtP
 	for (int i = 0; i < oriPoints2D.size(); i++)
 	{
 		oriPoints.push_back(oriPoints2D[i]);
-		tgtPoints_real.push_back(tgtPoints2D[i]);
+		if (i < tgtPoints2D.size())
+			tgtPoints_real.push_back(tgtPoints2D[i]);
 		ScenePoints3D.push_back(oriPoints3D[i]);
 	}
 }
