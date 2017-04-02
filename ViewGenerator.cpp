@@ -1,5 +1,7 @@
 #include "ViewGenerator.h"
+#include "Warp.h"
 
+#define BOUNDED(x, y, W, H) ( (x>0) && (x<W) && (y>0) && (y<H))
 
 void ViewGenerator::getNewFeaturesPos(CameraModel& newViewCM)
 {
@@ -45,6 +47,58 @@ void ViewGenerator::getNewMesh()
 	waitKey(0);
 	*/
 }
+
+void ViewGenerator::warpMLS(Mat& origin, Mat& mask, Mat& out)
+{
+	vector<CvPoint2D32f> src_points;
+	vector<CvPoint2D32f> dest_points;
+	
+	for(auto& pos : oriPoints)
+	{
+		src_points.push_back(Point(pos.x, pos.y));
+	}
+	for(auto& pos : tgtPoints)
+	{
+		dest_points.push_back(Point(pos.x, pos.y));
+	}
+
+	CWarp* m_warping = new CMLS(src_points, dest_points);
+
+
+	//warp using bilinear interpolation
+
+	for(int y = 0; y <= FrameH-1; y++)
+		for(int x = 0; x <= FrameW-1; x++)
+		{
+			if(x == FrameW-1)
+				cout << y << endl;
+
+			CvPoint2D32f q = m_warping->Warping(Point(x, y));
+			if(!BOUNDED(q.x, q.y, FrameW, FrameH))
+				continue;
+			if(mask.at<uchar>(q.y, q.x) > 127)
+			{
+				out.at<Vec3b>(y, x) = biliner_interpolate(q, origin);
+			}
+		}
+}
+
+Vec3b ViewGenerator::biliner_interpolate(Point2f pos, Mat &img)
+{
+	float X = pos.x;
+	float Y = pos.y;
+	
+	if(X < 0 || X >= img.cols-1 || Y < 0 || Y >= img.rows-1)
+		return Vec3b(255, 255, 255);
+
+	Vec3b p,q,r;
+	p = img.at<Vec3b>((int)Y, (int)X) + (X - (int)X) * (img.at<Vec3b>((int)Y ,(int)X + 1) - img.at<Vec3b>((int)Y, (int)X));
+	q = img.at<Vec3b>((int)Y + 1,(int)X) + (X - (int)X) * (img.at<Vec3b>((int)Y + 1, (int)X + 1) - img.at<Vec3b>((int)Y + 1,(int)X));
+	r = p + (Y - (int)Y) * (q - p);
+	
+	return r;
+}
+
 
 ViewGenerator::ViewGenerator()
 {

@@ -14,10 +14,11 @@ int main()
 	StitchSolver solver("data2", "005");
 	//solver.prepareForBundler();
 	solver.loadReconstruction();
+	//solver.preprocessMask();
+
 	//solver.warpFgHomo();
 	solver.warpOnMesh();
-	//solver.testWarping(0);
-	//solver.test();
+	//solver.warpMLS();
 
 	/*
 	string oriFolder = ("I:\\2016fallproject\\data\\video021_022");
@@ -162,5 +163,4 @@ int mainOri()
 	system("pause");
 	return 0;
 }
-
 

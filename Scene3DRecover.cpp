@@ -1,5 +1,6 @@
 #include "Scene3DRecover.h"
 
+/*
 #include "Geometry/Include/EuclideanGeometry.h"
 #include "Geometry/Include/SE3Geometry.h"
 #include "Geometry/Include/GrassmannGeometry.h"
@@ -8,6 +9,7 @@
 #include "MeanShiftLib/Include/VectorPointSet.h"
 #include "MeanShiftLib/Include/EssentialPointSet.h"
 #include "MeanShiftLib/Include/MeanShift.h"
+*/
 
 using namespace std;
 void Scene3DRecover::getForeGround3DAllFrames()

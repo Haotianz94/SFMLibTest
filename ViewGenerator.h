@@ -16,6 +16,9 @@ public:
 public:
 	void getNewFeaturesPos(CameraModel& newViewCM);
 	void getNewMesh();
+	void warpMLS(cv::Mat&, cv::Mat&, cv::Mat&);
+	cv::Vec3b biliner_interpolate(Point2f, cv::Mat &);
+	
 	ViewGenerator(vector<Point2f>& oriPoints2D, vector<Point2f>& tgtPoints2D, vector<Point3f>& oriPoints3D,
 		int FrameWidth, int FrameHeight,
 		int GridXNum, int GridYNum);

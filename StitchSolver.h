@@ -11,13 +11,18 @@ class StitchSolver
 {
 public:
 	StitchSolver(std::string, std::string);
-	void prepareForBundler();
 	void loadReconstruction();
 	void warpFgHomo();
-
 	cv::Mat warpOnMesh(int, bool);
 	void warpOnMesh();
+
+	void prepareForBundler();
+	void preprocessMask();
+	void medianFilter(cv::Mat& image, int filter);
 	
+	void warpMLS();
+	cv::Mat warpMLS(int, bool);
+
 	void testWarping(int);
 	void testWarping_middle(int);
 	void test();
@@ -39,6 +44,8 @@ private:
 
 	int GridX, GridY;
 	int FrameW, FrameH;
+
+	std::string join_path(const char*); 
 };
 
 #endif

@@ -130,6 +130,7 @@ Mat ForegroundWarper::warpFgHomo(CameraModel& newCM, vector<scenePointOnPair>& f
 	Mat H = findHomography(kp2, kp1);
 	Mat newFg = Mat(FrameH, FrameW, CV_8UC3, Scalar(255, 255, 255));
 
+	/*
 	int x2 = 0, x1 = FrameW, y2 = 0, y1 = FrameH;
 	for(auto& p : kp2)
 	{
@@ -156,6 +157,7 @@ Mat ForegroundWarper::warpFgHomo(CameraModel& newCM, vector<scenePointOnPair>& f
 		y1 = 0;
 	if(y2 >= FrameH)
 		y2 = FrameH - 1;
+	*/
 
 	for(int y = 0; y <= FrameH-1; y++)
 		for(int x = 0; x <= FrameW-1; x++)
