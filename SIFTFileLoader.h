@@ -25,6 +25,8 @@ public:
 	vector<vector<unsigned char>> refinedFeatVecData;
 	vector<int> refinedOriIDs;
 	vector<bool> ifInMask;
+	vector<int> trackNextFrame;
+	vector<int> trackLastFrame;
 	int keepNum;
 public:
 	SIFTFileLoader();

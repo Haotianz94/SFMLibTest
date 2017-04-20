@@ -24,8 +24,8 @@ public:
 	string maskFolder;
 	string workspaceFolder;
 	int startCam2Num;
-	BundlerFileLoader sfmLoader;
-	vector<SIFTFileLoader> allSiftsCam1;
+	BundlerFileLoader sfmLoader;	//only Bg points 
+	vector<SIFTFileLoader> allSiftsCam1; //only Fg points
 	vector<SIFTFileLoader> allSiftsCam2;
 
 	vector<vector<DMatch>> siftMatches;
@@ -33,6 +33,7 @@ public:
 	vector<vector<scenePointOnPair>> allForeGroundScenePoints;//ordered in matched frame, each match for one entry
 	vector<vector<scenePoint>> allBackGroundPointsCam1;
 	vector<vector<scenePoint>> allBackGroundPointsCam2;
+	vector<CameraModel> newCamPath;
 
 	string sourceFolder1, targetFolder1, maskFolder1;
 	string sourceFolder2, targetFolder2, maskFolder2;
@@ -45,12 +46,16 @@ public:
 	map<pair<int,int>, int> frame2Cam;
 	int cam1Num;
 	int cam2Num;
+	int trackNum; 
 
 public:
 	void getForeGround3DAllFrames();
 	void getBackGround3DAllFrames();
+	void trackForeGround(vector<SIFTFileLoader>&);
+	void createNewCamPath();
+
 	void getFilePaths(string&, string&);
-	void recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, string& img1Name, string& img2Name, CameraModel& cam1, CameraModel& cam2, SIFTFileLoader& sfl1, SIFTFileLoader& sfl2);
+	void recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, CameraModel& cam1, CameraModel& cam2, int, int);
 	void getMatchesSIFTLoader(SIFTFileLoader& sfl1, SIFTFileLoader& sfl2, vector<DMatch>& outMatch);
 	void getMatchesSIFTLoader_Ransac(SIFTFileLoader& sfl1, SIFTFileLoader& sfl2, vector<DMatch>& outMatch);
 	Point2f transform(Mat &H, Point2f srcp);

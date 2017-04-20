@@ -1,5 +1,6 @@
 #include "BundlerFileLoader.h"
 #include <boost/filesystem.hpp>
+#include "Logger.h"
 
 
 BundlerFileLoader::BundlerFileLoader()

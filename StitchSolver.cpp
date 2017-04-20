@@ -1,5 +1,7 @@
 #include "StitchSolver.h"
 #include "CV_Util2.h"
+#include "Logger.h"
+#include "Configer.h"
 
 using namespace std;
 StitchSolver::StitchSolver(string folder, string No)
@@ -14,8 +16,9 @@ StitchSolver::StitchSolver(string folder, string No)
 	//siftMaskResFolder = string("I:\\2016fallproject\\data2\\video001_002_recon\\");
 	cameraList = baseFolder + folder + string("\\") + No + string("\\all.nvm.cmvs\\00\\cameras_v2.txt");
 	bundlerRes = baseFolder + folder + string("\\") + No + string("\\all.nvm.cmvs\\00\\bundle.rd.out");
-	GridX = 20;
-	GridY = 20;
+
+	Configer::getConfiger()->getInt("warp", "GridX", GridX);
+	Configer::getConfiger()->getInt("warp", "GridY", GridY);
 }
 
 void StitchSolver::prepareForBundler()
@@ -29,12 +32,12 @@ void StitchSolver::loadReconstruction()
 {
 	recover.sfmLoader.init(cameraList, bundlerRes);
 	recover.getFilePaths(maskFolder, fgFolder);
-
 	recover.mapCam2Frame();
+	recover.createNewCamPath();
 	FrameH = recover.FrameH;
 	FrameW = recover.FrameW;
 	
-	for(int i = 0; i < 1; i++)
+	for(int i = 0; i < 30; i++)
 		recover.matchedFramesID.push_back(pair<int, int>(i, i));
 	//recover.matchedFramesID.push_back(pair<int, int>(0, 0));
 	
@@ -76,7 +79,7 @@ void StitchSolver::warpOnMesh()
 		sprintf_s(path, "%s\\warped1\\img%d.jpg", outFolder.c_str(), i);
 		imwrite(path, warped);
 
-		cout << "WarpOnMesh Frame: " << i << endl;
+		LOG << "WarpOnMesh Frame: " << i << '\n';
 	}
 }
 
@@ -98,55 +101,62 @@ Mat StitchSolver::warpOnMesh(int frameMatchId, bool isSequence1)
 	vector<Point2f> oriPoints, tgtPoints;
 	vector<Point3f> scnPoints;
 	
+	bool warpUsingFG = true;
+	Configer::getConfiger()->getBool("warp", "warpUsingFG", warpUsingFG);
 	//fill in foreground points
-	for(int k = 0; k < 1; k++)
+	if(warpUsingFG)
 	{
-		for(unsigned i = 0; i < ScnPoints.size(); i++)
+		for(int k = 0; k < 1; k++)
+		{
+			for(unsigned i = 0; i < ScnPoints.size(); i++)
+			{
+				if(isSequence1)
+				{
+					oriPoints.push_back(ScnPoints[i].pos2D_1);
+					tgtPoints.push_back(ScnPoints[i].pos2D_2);
+				}
+				else
+				{
+					oriPoints.push_back(ScnPoints[i].pos2D_2);
+					tgtPoints.push_back(ScnPoints[i].pos2D_1);
+				}
+				scnPoints.push_back(ScnPoints[i].scenePos);
+			}
+		}
+	}
+	LOG << "Feature points after filling FG: " << (int)oriPoints.size() << '\n';
+
+	bool warpUsingBG = true;
+	Configer::getConfiger()->getBool("warp", "warpUsingBG", warpUsingBG);
+	//fill in background points
+	if(warpUsingBG)
+	{
+		vector<scenePoint> BGScnPointsCam1 = recover.allBackGroundPointsCam1[frameId1];
+		vector<scenePoint> BGScnPointsCam2 = recover.allBackGroundPointsCam2[frameId2];
+		for(unsigned i = 0; i < BGScnPointsCam1.size(); i++)
 		{
 			if(isSequence1)
 			{
-				oriPoints.push_back(ScnPoints[i].pos2D_1);
-				tgtPoints.push_back(ScnPoints[i].pos2D_2);
+				oriPoints.push_back(BGScnPointsCam1[i].pos2D);
+				scnPoints.push_back(BGScnPointsCam1[i].scenePos);
 			}
 			else
+				tgtPoints.push_back(BGScnPointsCam1[i].pos2D);
+		}
+		for(unsigned i = 0; i < BGScnPointsCam2.size(); i++)
+		{
+			if(!isSequence1)
 			{
-				oriPoints.push_back(ScnPoints[i].pos2D_2);
-				tgtPoints.push_back(ScnPoints[i].pos2D_1);
+				oriPoints.push_back(BGScnPointsCam2[i].pos2D);
+				scnPoints.push_back(BGScnPointsCam2[i].scenePos);
 			}
-			scnPoints.push_back(ScnPoints[i].scenePos);
+			else
+				tgtPoints.push_back(BGScnPointsCam2[i].pos2D);
 		}
 	}
-	
-	REPORT(oriPoints.size());
-
-	//fill in background points
-	vector<scenePoint> BGScnPointsCam1 = recover.allBackGroundPointsCam1[frameId1];
-	vector<scenePoint> BGScnPointsCam2 = recover.allBackGroundPointsCam2[frameId2];
-	REPORT(BGScnPointsCam1.size());
-	REPORT(BGScnPointsCam2.size());
-	for(unsigned i = 0; i < BGScnPointsCam1.size(); i++)
-	{
-		if(isSequence1)
-		{
-			oriPoints.push_back(BGScnPointsCam1[i].pos2D);
-			scnPoints.push_back(BGScnPointsCam1[i].scenePos);
-		}
-		else
-			tgtPoints.push_back(BGScnPointsCam1[i].pos2D);
-	}
-	for(unsigned i = 0; i < BGScnPointsCam2.size(); i++)
-	{
-		if(!isSequence1)
-		{
-			oriPoints.push_back(BGScnPointsCam2[i].pos2D);
-			scnPoints.push_back(BGScnPointsCam2[i].scenePos);
-		}
-		else
-			tgtPoints.push_back(BGScnPointsCam2[i].pos2D);
-	}
+	LOG << "Feature points after filling BG: " << (int)oriPoints.size() << '\n';
 
 	generator = ViewGenerator(oriPoints, tgtPoints, scnPoints, FrameW, FrameH, GridX, GridY);
-	
 	//generator.getNewFeaturesPos(recover.sfmLoader.allCameras[recover.frame2Cam[make_pair(2, frameId2)]]);
 	generator.getNewFeaturesPos(recover.sfmLoader.allCameras[idInSFM1].getMedian(recover.sfmLoader.allCameras[idInSFM2]));
 	generator.getNewMesh();
@@ -154,8 +164,13 @@ Mat StitchSolver::warpOnMesh(int frameMatchId, bool isSequence1)
 	Mat out(FrameH, FrameW, CV_8UC3, Scalar(255, 255, 255));
 
 	CVUtil::visualizeMeshAndFeatures(origin, out, oriPoints, generator.deformedMesh);
-	//imshow("match", out);
-	//waitKey(0);
+	bool drawMesh = false;
+	Configer::getConfiger()->getBool("show", "drawMesh", drawMesh);
+	if(drawMesh)
+	{
+		imshow("match", out);
+		waitKey(0);
+	}
 	imwrite(join_path("mesh.jpg").c_str(), out);
 
 
@@ -204,9 +219,32 @@ string StitchSolver::join_path(const char* s)
 
 void StitchSolver::preprocessMask()
 {
+	//read mask file names
+	/*boost::filesystem::recursive_directory_iterator end_iter;
+	for (boost::filesystem::recursive_directory_iterator iter(maskFolder); iter != end_iter; iter++)
+	{
+		if (!boost::filesystem::is_directory(*iter)){
+			string currentImagePath = iter->path().string();
+			string currentImageS = iter->path().filename().string();
+			if (iter->path().extension() == string(".jpg") ||
+				iter->path().extension() == string(".png")){
+				if (currentImageS.find("cam1") != string::npos)
+				{
+					recover.cam1MaskNames.push_back(currentImagePath);
+				}
+				else if (currentImageS.find("cam2") != string::npos)
+				{
+					recover.cam2MaskNames.push_back(currentImagePath);
+				}
+				//	cout << "cur path" << imagePaths[imagePaths.size() - 1] << endl;
+			}
+		}
+	}
+	*/
+
 	int thresh = 100;
 	int dilation_type = MORPH_ELLIPSE;
-	int dilation_size = 10;
+	int dilation_size = 1;
 	int filter = 128;
 
 	for(auto &m : recover.cam1MaskNames)
@@ -345,15 +383,10 @@ Mat StitchSolver::warpMLS(int frameMatchId, bool isSequence1)
 			scnPoints.push_back(ScnPoints[i].scenePos);
 		}
 	}
-	
-	REPORT(oriPoints.size());
 
 	//fill in background points
-	/*
 	vector<scenePoint> BGScnPointsCam1 = recover.allBackGroundPointsCam1[frameId1];
 	vector<scenePoint> BGScnPointsCam2 = recover.allBackGroundPointsCam2[frameId2];
-	REPORT(BGScnPointsCam1.size());
-	REPORT(BGScnPointsCam2.size());
 	for(unsigned i = 0; i < BGScnPointsCam1.size(); i++)
 	{
 		if(isSequence1)
@@ -374,7 +407,6 @@ Mat StitchSolver::warpMLS(int frameMatchId, bool isSequence1)
 		else
 			tgtPoints.push_back(BGScnPointsCam2[i].pos2D);
 	}
-	*/
 
 	generator = ViewGenerator(oriPoints, tgtPoints, scnPoints, FrameW, FrameH, GridX, GridY);
 	
@@ -398,7 +430,6 @@ void StitchSolver::testWarping(int frameMatchId)
 	vector<scenePointOnPair>& ScnPoints = recover.allForeGroundScenePoints[frameMatchId];
 	vector<Point2f> oriPoints, tgtPoints;
 	vector<Point3f> scnPoints;
-	/*
 	for(int k = 0; k < 20; k++)
 	{
 		for(unsigned i = 0; i < ScnPoints.size(); i++)
@@ -408,12 +439,9 @@ void StitchSolver::testWarping(int frameMatchId)
 			scnPoints.push_back(ScnPoints[i].scenePos);
 		}
 	}
-	REPORT(oriPoints.size());
-	*/
+
 	vector<scenePoint> BGScnPointsCam1 = recover.allBackGroundPointsCam1[frameId1];
 	vector<scenePoint> BGScnPointsCam2 = recover.allBackGroundPointsCam2[frameId2];
-	REPORT(BGScnPointsCam1.size());
-	REPORT(BGScnPointsCam2.size());
 	for(unsigned i = 0; i < BGScnPointsCam1.size(); i++)
 	{
 		oriPoints.push_back(BGScnPointsCam1[i].pos2D);
@@ -421,7 +449,6 @@ void StitchSolver::testWarping(int frameMatchId)
 	}
 	for(unsigned i = 0; i < BGScnPointsCam2.size(); i++)
 		tgtPoints.push_back(BGScnPointsCam2[i].pos2D);
-
 
 	generator = ViewGenerator(oriPoints, tgtPoints, scnPoints, FrameW, FrameH, GridX, GridY);
 	//generator.getNewFeaturesPos(recover.sfmLoader.allCameras[recover.frame2Cam[make_pair(2, frameId2)]]);
@@ -461,11 +488,8 @@ void StitchSolver::testWarping_middle(int frameMatchId)
 		}
 	}
 	
-	REPORT(oriPoints.size());
 	vector<scenePoint> BGScnPointsCam1 = recover.allBackGroundPointsCam1[frameId1];
 	vector<scenePoint> BGScnPointsCam2 = recover.allBackGroundPointsCam2[frameId2];
-	REPORT(BGScnPointsCam1.size());
-	REPORT(BGScnPointsCam2.size());
 	for(unsigned i = 0; i < BGScnPointsCam1.size(); i++)
 	{
 		oriPoints.push_back(BGScnPointsCam1[i].pos2D);

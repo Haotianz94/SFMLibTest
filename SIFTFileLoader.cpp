@@ -1,4 +1,5 @@
 #include "SIFTFileLoader.h"
+#include "Logger.h"
 
 /*
 [Header][Location Data][Descriptor Data][EOF]
@@ -50,6 +51,8 @@ SIFTFileLoader::SIFTFileLoader(string& siftFileName)
 		streamF.read((char *)(&oneAbs.scale), sizeof(oneAbs.scale));
 		streamF.read((char *)(&oneAbs.orientation), sizeof(oneAbs.orientation));
     	allFeatsAbs.push_back(oneAbs);
+		trackLastFrame.push_back(-1);
+		trackNextFrame.push_back(-1);
 	}
 	
 	for (int i = 0; i < siftNum; i++)

@@ -8,9 +8,6 @@
 using namespace std;
 using namespace cv;
 
-#define REPORT(X) cout << #X << ": " << X << "\n"
-#define PRINT(X) cout << X << "\n"
-
 struct CameraModel
 {
 public:
@@ -54,7 +51,7 @@ public:
 	int featNum;
 	vector<string> viewImgFileName;
 	vector<OneFeatureInWholeScene> allFeats;
-	vector<CameraModel> allCameras;
+	vector<CameraModel> allCameras;	//index by the camera ID, not in frame sequence
 	vector<cv::Mat> allImgs;
 public:
 	BundlerFileLoader();

@@ -1,5 +1,6 @@
 #include "ForegroundWarper.h"
 #include "CameraHelper.h"
+#include "Logger.h"
 
 using namespace std;
 using namespace cv;
@@ -82,7 +83,7 @@ void ForegroundWarper::addWarpedPair(CameraModel& newCM, vector<scenePointOnPair
 		}
 		*/
 
-	REPORT(kp1.size());
+	REPORT((int)kp1.size());
 	Mat H = findHomography(kp1, kp2);
 	vector<int> best_consensus_set;
 	const double MAX_ERROR = 500;
@@ -96,7 +97,7 @@ void ForegroundWarper::addWarpedPair(CameraModel& newCM, vector<scenePointOnPair
 			best_consensus_set.push_back(i);
 	}
 
-	REPORT(best_consensus_set.size());
+	REPORT((int)best_consensus_set.size());
 	Mat newFg1 = warpFgHomo(newCM, fgScene, best_consensus_set, origin1, mask1, true);
 	Mat newFg2 = warpFgHomo(newCM, fgScene, best_consensus_set, origin2, mask2, false);
 	warpedFgCam1.push_back(newFg1);

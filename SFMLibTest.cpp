@@ -13,11 +13,11 @@ int main()
 {	
 	StitchSolver solver("data2", "005");
 	//solver.prepareForBundler();
-	solver.loadReconstruction();
-	//solver.preprocessMask();
+	//solver.loadReconstruction();
+	solver.preprocessMask();
 
 	//solver.warpFgHomo();
-	solver.warpOnMesh();
+	//solver.warpOnMesh();
 	//solver.warpMLS();
 
 	/*
