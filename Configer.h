@@ -51,6 +51,8 @@ public:
 	bool getBool(const char* section, const char* key, bool& value) const;
 	bool getDouble(const char* section, const char* key, double& value) const;
 	bool getString(const char* section, const char* key, std::string& value) const;
+	bool getArray(const char* section, const char* key, std::vector<int>& value) const;
+	bool getArray(const char* section, const char* key, std::vector<double>& value) const;
 };
 
 

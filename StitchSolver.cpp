@@ -4,8 +4,13 @@
 #include "Configer.h"
 
 using namespace std;
-StitchSolver::StitchSolver(string folder, string No)
+StitchSolver::StitchSolver()
 {
+	string folder, No, Cmvs;
+	Configer::getConfiger()->getString("input", "folder", folder);
+	Configer::getConfiger()->getString("input", "No", No);
+	Configer::getConfiger()->getString("input", "Cmvs", Cmvs);
+
 	string baseFolder = string("I:\\2016fallproject\\");
 
 	oriFolder = baseFolder + folder + string("\\") + No + string("\\origin");
@@ -14,8 +19,8 @@ StitchSolver::StitchSolver(string folder, string No)
 	bgFolder = baseFolder + folder + string("\\") + No + string("\\bg");
 	outFolder = baseFolder + folder + string("\\") + No + string("\\out");
 	//siftMaskResFolder = string("I:\\2016fallproject\\data2\\video001_002_recon\\");
-	cameraList = baseFolder + folder + string("\\") + No + string("\\all.nvm.cmvs\\00\\cameras_v2.txt");
-	bundlerRes = baseFolder + folder + string("\\") + No + string("\\all.nvm.cmvs\\00\\bundle.rd.out");
+	cameraList = baseFolder + folder + string("\\") + No + string("\\") + Cmvs + string("\\00\\cameras_v2.txt");
+	bundlerRes = baseFolder + folder + string("\\") + No + string("\\") + Cmvs + string("\\00\\bundle.rd.out");
 
 	Configer::getConfiger()->getInt("warp", "GridX", GridX);
 	Configer::getConfiger()->getInt("warp", "GridY", GridY);
@@ -37,7 +42,9 @@ void StitchSolver::loadReconstruction()
 	FrameH = recover.FrameH;
 	FrameW = recover.FrameW;
 	
-	for(int i = 0; i < 30; i++)
+	int frameNum = 30;
+	Configer::getConfiger()->getInt("input", "frameNum", frameNum);
+	for(int i = 0; i < frameNum; i++)
 		recover.matchedFramesID.push_back(pair<int, int>(i, i));
 	//recover.matchedFramesID.push_back(pair<int, int>(0, 0));
 	
@@ -72,14 +79,20 @@ void StitchSolver::loadReconstruction()
 
 void StitchSolver::warpOnMesh()
 {
+	LOG << "Warping foreground based on mesh...\n\n";
+	bool isSequence1 = true;
+	Configer::getConfiger()->getBool("input", "isSequence1", isSequence1);
 	for(int i = 0; i < recover.matchedFramesID.size(); i++)
 	{
-		Mat warped = warpOnMesh(i, true);
+		Mat warped = warpOnMesh(i, isSequence1);
 		char path[100];
-		sprintf_s(path, "%s\\warped1\\img%d.jpg", outFolder.c_str(), i);
+		if(isSequence1)
+			sprintf_s(path, "%s\\warped1\\img%d.jpg", outFolder.c_str(), i);
+		else
+			sprintf_s(path, "%s\\warped2\\img%d.jpg", outFolder.c_str(), i);
 		imwrite(path, warped);
 
-		LOG << "WarpOnMesh Frame: " << i << '\n';
+		LOG << "Warping " << i << " th frame finished\n\n";
 	}
 }
 
@@ -164,11 +177,12 @@ Mat StitchSolver::warpOnMesh(int frameMatchId, bool isSequence1)
 	Mat out(FrameH, FrameW, CV_8UC3, Scalar(255, 255, 255));
 
 	CVUtil::visualizeMeshAndFeatures(origin, out, oriPoints, generator.deformedMesh);
-	bool drawMesh = false;
-	Configer::getConfiger()->getBool("show", "drawMesh", drawMesh);
-	if(drawMesh)
+	//draw deformed mesh
+	vector<int> drawMesh;
+	Configer::getConfiger()->getArray("show", "drawMesh", drawMesh);
+	if( std::find(drawMesh.begin(), drawMesh.end(), frameId1) != drawMesh.end() )
 	{
-		imshow("match", out);
+		imshow("Mesh", out);
 		waitKey(0);
 	}
 	imwrite(join_path("mesh.jpg").c_str(), out);

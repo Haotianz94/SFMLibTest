@@ -127,9 +127,10 @@ BundlerFileLoader::BundlerFileLoader(string& cameraFileName, string& bundlerFile
 
 void BundlerFileLoader::init(string& cameraFileName, string& bundlerFileName)
 {
+	LOG << "Loading bundler files...\n\n";
+
 	ifstream ifCameraList(cameraFileName, std::ios::in);
 	ifstream ifBundler(bundlerFileName, std::ios::in);
-
 
 	const int LINE_LENGTH = 100;
 	char str[LINE_LENGTH];

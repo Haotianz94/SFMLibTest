@@ -10,7 +10,7 @@
 class StitchSolver
 {
 public:
-	StitchSolver(std::string, std::string);
+	StitchSolver();
 	void loadReconstruction();
 	void warpFgHomo();
 	cv::Mat warpOnMesh(int, bool);

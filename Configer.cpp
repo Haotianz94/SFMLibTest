@@ -158,3 +158,47 @@ bool Configer::getString(const char* section, const char* key, string& value) co
 	}
 	return false;
 }
+
+bool Configer::getArray(const char* section, const char* key, std::vector<int>& value) const
+{
+	char text[STRING_LEN];
+	if(getString(section, key, text))
+	{
+		int s = 1, t = 1;
+		while(text[t] != '}')
+		{
+			if(text[t] == ',')
+			{
+				value.push_back(atoi(text + s));
+				s = ++t;
+			}
+			else
+				t++;
+		}
+		value.push_back(atoi(text + s));
+		return true;
+	}
+	return false;
+}
+
+bool Configer::getArray(const char* section, const char* key, std::vector<double>& value) const
+{
+	char text[STRING_LEN];
+	if(getString(section, key, text))
+	{
+		int s = 1, t = 1;
+		while(text[t] != '}')
+		{
+			if(text[t] == ',')
+			{
+				value.push_back(atof(text + s));
+				s = ++t;
+			}
+			else
+				t++;
+		}
+		value.push_back(atof(text + s));
+		return true;
+	}
+	return false;
+}

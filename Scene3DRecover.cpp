@@ -12,15 +12,22 @@
 #include "MeanShiftLib/Include/EssentialPointSet.h"
 #include "MeanShiftLib/Include/MeanShift.h"
 */
+string NUM2TEXT(int x)
+{
+	char s[100];
+	sprintf_s(s, "%d", x);
+	return string(s);
+}
+
 
 using namespace std;
 void Scene3DRecover::getForeGround3DAllFrames()
 {
-	//track Fg features in time sequence
+	LOG << "Tracking Fg features in time sequence...\n\n";
 	trackForeGround(allSiftsCam1);
 	trackForeGround(allSiftsCam2);
 
-	//match Fg features in two views
+	LOG << "Recovering Fg 3D using triangulation...\n\n";
 	Configer::getConfiger()->getInt("param", "trackNum", trackNum);
 	for (int i = 0; i < matchedFramesID.size(); i++)
 	{
@@ -34,7 +41,7 @@ void Scene3DRecover::getForeGround3DAllFrames()
 		this->recoverFore3D1F(ScnPoints, sfmLoader.allCameras[idInSFM1], sfmLoader.allCameras[idInSFM2], id1, id2);
 		allForeGroundScenePoints.push_back(ScnPoints);
 		
-		LOG << "Recover Foreground Frame Id: " << i << '\n';
+		LOG << "Recover Foreground 3D in "<< i << " th frame\n";
 		//break;//*************
 	}
 }
@@ -55,30 +62,6 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 
 	//get foreground feature matches from Ransac
 	//getMatchesSIFTLoader_Ransac(sfl1, sfl2, matchedFeatures);
-
-	//draw foreground feature matches  
-	vector<KeyPoint> kp1, kp2;
-	vector<DMatch> matchedFeatures2;
-	for(auto& pos : sfl1.allFeatsAbs)
-	{
-		KeyPoint kp;
-		kp.pt = pos.pos;
-		kp1.push_back(kp);
-	}
-	for(auto& pos : sfl2.allFeatsAbs)
-	{
-		KeyPoint kp;
-		kp.pt = pos.pos;
-		kp2.push_back(kp);
-	}
-	/*
-	Mat out;
-	drawMatches(img1, kp1, img2, kp2, matchedFeatures, out);
-	imwrite("match.jpg", out);
-	resize(out, out, cvSize(out.cols/2, out.rows/2));
-	imshow("out", out);
-	waitKey(0);
-	*/
 
 	//cluster using meanshift
 	/*
@@ -150,14 +133,13 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 	*/
 	
 	int id1, id2; cv::Point2f p1, p2;
-//	vector<scenePointOnPair> pSeq;
-	cv::Point2f mp(img1.cols / 2, img1.rows / 2);
-	for (int k = 0; k < matchedFeatures.size(); k++)
+	//remove points not in tracked time sequence
+	int i = 0;
+	while(i < matchedFeatures.size())
 	{
-		id2 = matchedFeatures[k].trainIdx;
-		id1 = matchedFeatures[k].queryIdx;
+		id2 = matchedFeatures[i].trainIdx;
+		id1 = matchedFeatures[i].queryIdx;
 
-		//remove points not in tracked time sequence
 		bool trackFlag = true;
 		int trackedId1 = id1, trackedId2 = id2;
 		int trackFId1 = frameId1, trackFId2 = frameId2;
@@ -188,9 +170,43 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 			}
 		}
 		if(!trackFlag)
-			continue;
-		
-		matchedFeatures2.push_back(matchedFeatures[k]);
+			matchedFeatures.erase(matchedFeatures.begin() + i);
+		else
+			++i;
+	}
+	LOG << "Matches after sequence tracking: " << (int)matchedFeatures.size() << "\n";
+
+	//remove outliers using homography
+	vector<Point2f> sel_kp1, sel_kp2;
+	for(auto& m : matchedFeatures)
+	{
+		sel_kp1.push_back(sfl1.allFeatsAbs[m.queryIdx].pos);
+		sel_kp2.push_back(sfl2.allFeatsAbs[m.trainIdx].pos);
+	}
+	Mat H = findHomography(sel_kp1, sel_kp2);
+	double max_error = 400;
+	Configer::getConfiger()->getDouble("param", "max_error", max_error);
+	
+	i = 0;
+	while(i < matchedFeatures.size())
+	{
+		int id1 = matchedFeatures[i].queryIdx;
+		int id2 = matchedFeatures[i].trainIdx;
+		Point2f p2_t = transform(H, sfl1.allFeatsAbs[id1].pos);
+		Point2f p2 = sfl2.allFeatsAbs[id2].pos;
+		double error = (p2.x - p2_t.x) * (p2.x - p2_t.x) + (p2.y - p2_t.y) * (p2.y - p2_t.y);
+		if(error > max_error)
+			matchedFeatures.erase(matchedFeatures.begin() + i);
+		else
+			++i;
+	}
+	LOG << "Matches after removing outliers: " << (int)matchedFeatures.size() << "\n";
+
+	cv::Point2f mp(img1.cols / 2, img1.rows / 2);
+	for(auto& m : matchedFeatures)
+	{
+		int id1 = m.queryIdx;
+		int id2 = m.trainIdx;
 
 		//adjust coordinate system
 		p1.x = sfl1.allFeatsAbs[id1].pos.x  - mp.x;
@@ -208,17 +224,26 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 		out_ScnPoints.push_back(scnPoint);
 	}
 
-	LOG << "Matches after sequence tracking: " << (int)matchedFeatures2.size() << "\n";
-	
 	//draw matched after matching in time sequence and two views
-	/*
+	vector<KeyPoint> kp1, kp2;
+	for(auto& pos : sfl1.allFeatsAbs)
+	{
+		KeyPoint kp;
+		kp.pt = pos.pos;
+		kp1.push_back(kp);
+	}
+	for(auto& pos : sfl2.allFeatsAbs)
+	{
+		KeyPoint kp;
+		kp.pt = pos.pos;
+		kp2.push_back(kp);
+	}
+
 	Mat out;
-	drawMatches(img1, kp1, img2, kp2, matchedFeatures2, out);
-	imwrite("match.jpg", out);
-	resize(out, out, cvSize(out.cols/2, out.rows/2));
-	imshow("out", out);
-	waitKey(0);
-	*/
+	drawMatches(img1, kp1, img2, kp2, matchedFeatures, out);
+	string matchFolder;
+	Configer::getConfiger()->getString("output", "matchFolder", matchFolder);
+	imwrite((matchFolder + NUM2TEXT(frameId1) + string(".jpg")), out);
 }
 
 void Scene3DRecover::getMatchesSIFTLoader(SIFTFileLoader& sfl1, SIFTFileLoader& sfl2, vector<DMatch>& outMatch)
@@ -381,6 +406,8 @@ void Scene3DRecover::getMatchesSIFTLoader_Ransac(SIFTFileLoader& sfl1, SIFTFileL
 
 void Scene3DRecover::getBackGround3DAllFrames()
 {
+	LOG << "Loading all background 3D from bundler...\n\n";
+
 	for(int i = 0; i < cam1Num; i++)
 		allBackGroundPointsCam1.push_back(vector<scenePoint>());
 	for(int i = 0; i < cam2Num; i++)
@@ -437,9 +464,16 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 	if (!boost::filesystem::exists(workspaceFolder))
 		boost::filesystem::create_directories(workspaceFolder);
 
+	int frameNum = 30;
+	Configer::getConfiger()->getInt("input", "frameNum", frameNum);
+
+	LOG << "Loading all image file path...\n\n";
 	boost::filesystem::recursive_directory_iterator end_iter;
 	for (boost::filesystem::recursive_directory_iterator iter(mainFolder); iter != end_iter; iter++)
 	{
+		if(cam1ImgNames.size() > frameNum && cam2ImgNames.size() > frameNum)
+			break;
+
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
 			string currentImageS = iter->path().filename().string();
@@ -448,11 +482,12 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 				if (currentImageS.find("cam1") != string::npos)
 				{
 					cam1ImgNames.push_back(currentImagePath);
-					cout << currentImagePath << endl;
+					//cout << currentImagePath << endl;
 				}
 				else if (currentImageS.find("cam2") != string::npos)
 				{
 					cam2ImgNames.push_back(currentImagePath);
+					//cout << currentImagePath << endl;
 				}
 				//	cout << "cur path" << imagePaths[imagePaths.size() - 1] << endl;
 
@@ -461,10 +496,12 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 
 	}
 
-//	SIFTHandle::updateSIFTfolder(mainFolder, maskFolder, workspaceFolder);
-	//Get all the foreground SIFT points
+	LOG << "Loading all sift file path...\n\n";
 	for (boost::filesystem::recursive_directory_iterator iter(workspaceFolder); iter != end_iter; iter++)
 	{
+		if(allSiftsCam1.size() > frameNum && allSiftsCam2.size() > frameNum)
+			break;
+
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
 			string currentImageS = iter->path().filename().string();
@@ -488,9 +525,12 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 
 	}
 
-	
+	LOG << "Loading all mask file path...\n\n";
 	for (boost::filesystem::recursive_directory_iterator iter(maskFolder); iter != end_iter; iter++)
 	{
+		if(cam1MaskNames.size() > frameNum && cam2MaskNames.size() > frameNum)
+			break;
+
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
 			string currentImageS = iter->path().filename().string();
@@ -512,7 +552,6 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 
 	}
 	
-
 	Mat img = imread(cam1ImgNames[0]);
 	FrameH = img.rows;
 	FrameW = img.cols;
@@ -522,6 +561,7 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 
 void Scene3DRecover::createNewCamPath()
 {
+	LOG << "Creating new camera path...\n\n";
 	for (unsigned i = 0; i < matchedFramesID.size(); i++)
 	{
 		int id1 = matchedFramesID[i].first;
@@ -533,6 +573,7 @@ void Scene3DRecover::createNewCamPath()
 		newCamPath.push_back(sfmLoader.allCameras[idInSFM1].getMedian(sfmLoader.allCameras[idInSFM2]));
 	}
 
+	LOG << "Filtering new camera path...\n\n";
 	//Median filter
 	int iteration = 3;
 	int step = 1;
