@@ -1,35 +1,56 @@
 #include "StitchSolver.h"
 #include "CV_Util2.h"
+#include <direct.h>
 #include "Logger.h"
 #include "Configer.h"
+#include <fstream>
 
 using namespace std;
+
 StitchSolver::StitchSolver()
 {
-	string folder, No, Cmvs;
+	string baseFolder, folder, No, Cmvs;
+	Configer::getConfiger()->getString("input", "baseFolder", baseFolder);
 	Configer::getConfiger()->getString("input", "folder", folder);
 	Configer::getConfiger()->getString("input", "No", No);
 	Configer::getConfiger()->getString("input", "Cmvs", Cmvs);
-
-	string baseFolder = string("I:\\2016fallproject\\");
+	
+	REPORT(baseFolder);
+	REPORT(folder);
+	REPORT(No);
+	REPORT(Cmvs);
 
 	oriFolder = baseFolder + folder + string("\\") + No + string("\\origin");
 	maskFolder = baseFolder + folder + string("\\") + No + string("\\mask");
 	fgFolder = baseFolder + folder + string("\\") + No + string("\\fg");
 	bgFolder = baseFolder + folder + string("\\") + No + string("\\bg");
+	siftFolder = baseFolder + folder + string("\\") + No + string("\\sift");
 	outFolder = baseFolder + folder + string("\\") + No + string("\\out");
-	//siftMaskResFolder = string("I:\\2016fallproject\\data2\\video001_002_recon\\");
 	cameraList = baseFolder + folder + string("\\") + No + string("\\") + Cmvs + string("\\00\\cameras_v2.txt");
 	bundlerRes = baseFolder + folder + string("\\") + No + string("\\") + Cmvs + string("\\00\\bundle.rd.out");
 
 	Configer::getConfiger()->getInt("warp", "GridX", GridX);
 	Configer::getConfiger()->getInt("warp", "GridY", GridY);
+	REPORT(GridX);
+	REPORT(GridY);
+
+
+	//create folder
+	_mkdir(fgFolder.c_str());
+	_mkdir(bgFolder.c_str());
+	_mkdir(siftFolder.c_str());
+	_mkdir(outFolder.c_str());
+	_mkdir(join_path("warped1").c_str());
+	_mkdir(join_path("warped2").c_str());
+	_mkdir(join_path("match").c_str());
+	_mkdir(join_path("mesh").c_str());
+
 }
 
 void StitchSolver::prepareForBundler()
 {
 	// Handle mask before recovering
-	SIFTHandle::updateSIFTfolder(oriFolder, maskFolder, fgFolder, bgFolder);
+	SIFTHandle::updateSIFTfolder(oriFolder, maskFolder, fgFolder, bgFolder, siftFolder);
 
 }
 
@@ -42,10 +63,11 @@ void StitchSolver::loadReconstruction()
 	FrameH = recover.FrameH;
 	FrameW = recover.FrameW;
 	
-	int frameNum = 30;
-	Configer::getConfiger()->getInt("input", "frameNum", frameNum);
-	for(int i = 0; i < frameNum; i++)
+	int testFrameNum = 30;
+	Configer::getConfiger()->getInt("input", "testFrameNum", testFrameNum);
+	for(int i = 0; i < testFrameNum; i++)
 		recover.matchedFramesID.push_back(pair<int, int>(i, i));
+	recover.cam1Num = recover.cam2Num = testFrameNum;
 	//recover.matchedFramesID.push_back(pair<int, int>(0, 0));
 	
 	recover.getForeGround3DAllFrames();
@@ -82,33 +104,63 @@ void StitchSolver::warpOnMesh()
 	LOG << "Warping foreground based on mesh...\n\n";
 	bool isSequence1 = true;
 	Configer::getConfiger()->getBool("input", "isSequence1", isSequence1);
+
+	vector<Mat_<Vec2f>> deformedMesh;
 	for(int i = 0; i < recover.matchedFramesID.size(); i++)
 	{
-		Mat warped = warpOnMesh(i, isSequence1);
+		warpOnMesh(i, isSequence1, deformedMesh);
+		LOG << "Calculating deformed mesh for " << i << "th frame finished\n\n";
+	}
+
+	//run filter in deformed meshes
+	filterDeformedMesh(deformedMesh);
+
+	warper = Warper(Mesh(FrameW, FrameH, GridX, GridY));
+	for(int i = 0; i < recover.matchedFramesID.size(); i++)
+	{	
+		int frameId1 = recover.matchedFramesID[i].first;
+		int frameId2 = recover.matchedFramesID[i].second;
+		int idInSFM1 = recover.frame2Cam[make_pair(1, frameId1)];
+		int idInSFM2 = recover.frame2Cam[make_pair(2, frameId2)];
+		Mat origin;
+		if(isSequence1)
+			origin = imread(recover.cam1ImgNames[frameId1]);
+		else
+			origin = imread(recover.cam2ImgNames[frameId2]);
+		Mat warped(FrameH, FrameW, CV_8UC3, Scalar(255, 255, 255));
+		
+		vector<Point2f> oriPoints;//Here is NULL
+		CVUtil::visualizeMeshAndFeatures(origin, warped, oriPoints, deformedMesh[i]);
+		//draw deformed mesh
+		string baseFolder, folder, No, Cmvs;
+		Configer::getConfiger()->getString("input", "baseFolder", baseFolder);
+		Configer::getConfiger()->getString("input", "folder", folder);
+		Configer::getConfiger()->getString("input", "No", No);
+		string meshFolder = baseFolder + folder + string("\\") + No + string("\\out\\mesh\\");
+		char num[10];
+		sprintf_s(num, "%d", frameId1);
+		imwrite((meshFolder + string(num) + string(".jpg")), warped);
+
+		//perform mesh based warping
+		warper.warpBilateralInterpolate(origin, deformedMesh[i], warped);
+
 		char path[100];
 		if(isSequence1)
 			sprintf_s(path, "%s\\warped1\\img%d.jpg", outFolder.c_str(), i);
 		else
 			sprintf_s(path, "%s\\warped2\\img%d.jpg", outFolder.c_str(), i);
 		imwrite(path, warped);
-
-		LOG << "Warping " << i << " th frame finished\n\n";
+		
+		LOG << "Warping " << i << "th frame finished\n\n";
 	}
 }
 
-Mat StitchSolver::warpOnMesh(int frameMatchId, bool isSequence1)
+void StitchSolver::warpOnMesh(int frameMatchId, bool isSequence1, vector<Mat_<Vec2f>>& deformedMesh)
 {
 	int frameId1 = recover.matchedFramesID[frameMatchId].first;
 	int frameId2 = recover.matchedFramesID[frameMatchId].second;
 	int idInSFM1 = recover.frame2Cam[make_pair(1, frameId1)];
 	int idInSFM2 = recover.frame2Cam[make_pair(2, frameId2)];
-
-	Mat origin;
-	if(isSequence1)
-		origin = imread(recover.cam1ImgNames[frameId1]);
-	else
-		origin = imread(recover.cam2ImgNames[frameId2]);
-
 
 	vector<scenePointOnPair>& ScnPoints = recover.allForeGroundScenePoints[frameMatchId];
 	vector<Point2f> oriPoints, tgtPoints;
@@ -174,25 +226,39 @@ Mat StitchSolver::warpOnMesh(int frameMatchId, bool isSequence1)
 	generator.getNewFeaturesPos(recover.sfmLoader.allCameras[idInSFM1].getMedian(recover.sfmLoader.allCameras[idInSFM2]));
 	generator.getNewMesh();
 
-	Mat out(FrameH, FrameW, CV_8UC3, Scalar(255, 255, 255));
+	deformedMesh.push_back(generator.deformedMesh);
+}
 
-	CVUtil::visualizeMeshAndFeatures(origin, out, oriPoints, generator.deformedMesh);
-	//draw deformed mesh
-	vector<int> drawMesh;
-	Configer::getConfiger()->getArray("show", "drawMesh", drawMesh);
-	if( std::find(drawMesh.begin(), drawMesh.end(), frameId1) != drawMesh.end() )
+void StitchSolver::filterDeformedMesh(vector<Mat_<Vec2f>>& deformedMesh)
+{
+	LOG << "Filtering deformed meshes...\n\n";
+	//Median filter
+	int iteration = 3;
+	int step = 1;
+	Configer::getConfiger()->getInt("deformedMesh", "iteration", iteration);
+	Configer::getConfiger()->getInt("deformedMesh", "step", step);
+
+	REPORT((int)deformedMesh.size());
+	REPORT(deformedMesh[0].cols);
+	REPORT(deformedMesh[0].rows);
+
+	for(int k = 0; k < iteration; k++)
 	{
-		imshow("Mesh", out);
-		waitKey(0);
+		for(int i = 0; i < deformedMesh.size(); i++)
+		{
+			Mat_<Vec2f> mesh(deformedMesh[0].rows, deformedMesh[0].cols, Vec2f(0, 0));
+			for(int j = -step; j <= step; j++)
+			{
+				if(i+j < 0)
+					mesh += deformedMesh.front();
+				else if(i+j > (int)deformedMesh.size()-1)
+					mesh += deformedMesh.back();
+				else
+					mesh += deformedMesh[i+j];
+			}
+			deformedMesh[i] = mesh / (2*step+1);
+		}
 	}
-	imwrite(join_path("mesh.jpg").c_str(), out);
-
-
-	warper = Warper(Mesh(FrameW, FrameH, GridX, GridY));
-	warper.warpBilateralInterpolate(origin, generator.deformedMesh, out);
-	//imshow("warp", out);
-	//waitKey(0);
-	return out;
 }
 
 void StitchSolver::warpFgHomo()
@@ -233,29 +299,25 @@ string StitchSolver::join_path(const char* s)
 
 void StitchSolver::preprocessMask()
 {
-	//read mask file names
-	/*boost::filesystem::recursive_directory_iterator end_iter;
-	for (boost::filesystem::recursive_directory_iterator iter(maskFolder); iter != end_iter; iter++)
+	recover.getFilePaths(maskFolder, oriFolder);
+	
+	//cut region
+	/*
+	for(auto& imgname : recover.cam1MaskNames)
 	{
-		if (!boost::filesystem::is_directory(*iter)){
-			string currentImagePath = iter->path().string();
-			string currentImageS = iter->path().filename().string();
-			if (iter->path().extension() == string(".jpg") ||
-				iter->path().extension() == string(".png")){
-				if (currentImageS.find("cam1") != string::npos)
-				{
-					recover.cam1MaskNames.push_back(currentImagePath);
-				}
-				else if (currentImageS.find("cam2") != string::npos)
-				{
-					recover.cam2MaskNames.push_back(currentImagePath);
-				}
-				//	cout << "cur path" << imagePaths[imagePaths.size() - 1] << endl;
-			}
-		}
+		Mat img = imread(imgname);
+		Mat imgROI(img, Rect(0, 520, 1080, 1400));
+		imwrite(imgname, imgROI);
+	}
+	for(auto& imgname : recover.cam2MaskNames)
+	{
+		Mat img = imread(imgname);
+		Mat imgROI(img, Rect(0, 520, 1080, 1400));
+		imwrite(imgname, imgROI);
 	}
 	*/
 
+	//fill holes and dilate to some extent
 	int thresh = 100;
 	int dilation_type = MORPH_ELLIPSE;
 	int dilation_size = 1;
@@ -304,6 +366,118 @@ void StitchSolver::preprocessMask()
 	}
 
 }
+
+void StitchSolver::preprocessOrigin()
+{
+	recover.getFilePaths(maskFolder, oriFolder);
+
+	//cut region
+	/*
+	for(auto& imgname : recover.cam1ImgNames)
+	{
+		Mat img = imread(imgname);
+		Mat imgROI(img, Rect(0, 520, 1080, 1400));
+		imwrite(imgname, imgROI);
+	}
+	for(auto& imgname : recover.cam2ImgNames)
+	{
+		Mat img = imread(imgname);
+		Mat imgROI(img, Rect(0, 520, 1080, 1400));
+		imwrite(imgname, imgROI);
+	}
+	*/
+
+	//histogram matching
+	Mat target = imread(recover.cam1ImgNames[0]);
+	Mat target_mask = imread(recover.cam1MaskNames[0], 0);
+	if(target.empty() || target_mask.empty())
+		return ;
+
+	for(unsigned id = 0; id < recover.cam2ImgNames.size(); id++)
+	{
+		Mat img = imread(recover.cam2ImgNames[id]);
+		Mat mask = imread(recover.cam2MaskNames[id], 0);
+		int nrows = img.rows;
+		int ncols = img.cols;
+
+	int CI[256][3];
+	int CJ[256][3];
+	double PI[256][3];
+	double PJ[256][3];
+	uchar LUT[256][3];
+	int numI = 0, numJ = 0;
+
+	for(int i = 0; i < 256; i++)
+		for(int k = 0; k < 3; k++)
+		{
+			CI[i][k] = 0;
+			CJ[i][k] = 0;
+		}
+
+	for(int y = 0; y < nrows; y++)
+		for(int x = 0; x < ncols; x++)
+			for(int k = 0; k < 3; k++)
+			{
+				//if(mask.at<uchar>(y, x) > 127)
+				{
+					uchar val = img.at<Vec3b>(y, x)[k];
+					CI[val][k] += 1;
+					numI ++;
+				}
+			}
+
+	for(int y = 0; y < target.rows; y++)
+		for(int x = 0; x < target.cols; x++)
+			for(int k = 0; k < 3; k++)
+			{
+				//if(target_mask.at<uchar>(y, x) > 127)
+				{
+					uchar val =  target.at<Vec3b>(y, x)[k];
+					CJ[val][k] += 1;
+					numJ ++;
+				}
+			}
+
+	for(int i = 0; i < 256; i++)
+		for(int k = 0; k < 3; k++)
+		{
+			if(i > 0)
+			{
+				CI[i][k] += CI[i-1][k];
+				CJ[i][k] += CJ[i-1][k];
+			}
+		}
+	
+	for(int i = 0; i < 256; i++)
+		for(int k = 0; k < 3; k++)
+		{
+			PI[i][k] = 1.0 * CI[i][k] / numI;
+			PJ[i][k] = 1.0 * CJ[i][k] / numJ;
+		}
+
+	for(int k = 0; k < 3; k++)
+	{
+		uchar j = 0;
+		for(int i = 0; i < 256; i++)
+		{
+			while(PJ[j][k] < PI[i][k] && j < 255)
+				j ++;
+			LUT[i][k] = j;
+		}
+	}
+
+	Mat res = Mat(img.size(), CV_8UC3);
+	for(int y = 0; y < nrows; y++)
+		for(int x = 0; x < ncols; x++)
+			for(int k = 0; k < 3; k++)
+				res.at<Vec3b>(y, x)[k] = LUT[img.at<Vec3b>(y, x)[k]][k];
+
+	REPORT(recover.cam2ImgNames[id]);
+	imwrite(recover.cam2ImgNames[id], res);
+
+	}
+}
+
 
 void StitchSolver::medianFilter(Mat& image, int filter)
 {
@@ -540,4 +714,71 @@ void StitchSolver::test()
 
 	imshow("img2", img);
 	waitKey(0);
+}
+
+void StitchSolver::extractFeatureFG()
+{
+	recover.getFilePaths(maskFolder, fgFolder); 
+	/*
+	for(unsigned i = 0; i < recover.cam1ImgNames.size(); i++)
+	{
+		Mat img = imread(recover.cam1ImgNames[i]);
+		Mat mask = imread(recover.cam1MaskNames[i], 0);
+		extractFeatureFG(img, mask, recover.cam1ImgNames[i]);
+	}
+	*/
+	for(unsigned i = 30; i < recover.cam2ImgNames.size(); i++)
+	{
+		Mat img = imread(recover.cam2ImgNames[i]);
+		Mat mask = imread(recover.cam2MaskNames[i], 0);
+		extractFeatureFG(img, mask, recover.cam2ImgNames[i]);
+	}
+}
+
+void StitchSolver::extractFeatureFG(Mat& img, Mat& mask, string imgPath)
+{
+	string featureFG;
+	Configer::getConfiger()->getString("input", "featureFG", featureFG);
+
+	initModule_nonfree(); 
+	Ptr<FeatureDetector> detector = FeatureDetector::create( featureFG );
+	Ptr<DescriptorExtractor> descriptor_extractor = DescriptorExtractor::create( featureFG );
+	if( detector.empty() || descriptor_extractor.empty() )    
+		cout << "fail to create detector!";    
+		
+	//detect feature position
+	vector<KeyPoint> kp;    
+	detector->detect( img, kp );   
+	LOG << "All feature point num: " << (int)kp.size() << '\n';
+
+	//remove feature in background
+	unsigned k = 0;
+	while(k < kp.size())
+	{
+		if(mask.at<uchar>(kp[k].pt.y, kp[k].pt.x) < 127)
+			kp.erase(kp.begin() + k);
+		else
+			k ++;
+	}
+	LOG << "FG feature point num: " << (int)kp.size() << '\n';
+		 
+	//extract feature vector
+	Mat descriptors;    
+	descriptor_extractor->compute( img, kp, descriptors );    
+
+	//write feature to file
+	string featFile;
+	if(featureFG == "SURF")
+		featFile = imgPath.substr(0, imgPath.length()-4) + string(".surf");
+	REPORT(featFile);
+
+	ofstream fout(featFile);
+	fout << descriptors.rows << endl;
+	for(int i = 0; i < descriptors.rows; i++)
+	{
+		fout << kp[i].pt.x << ' '<< kp[i].pt.y << endl;
+		for(int j = 0; j < 64; j++)
+			fout << descriptors.at<float>(i, j) << endl;
+	}
+	fout.close();
 }

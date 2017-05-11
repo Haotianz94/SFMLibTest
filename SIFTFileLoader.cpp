@@ -1,5 +1,6 @@
 #include "SIFTFileLoader.h"
 #include "Logger.h"
+#include "Configer.h"
 
 /*
 [Header][Location Data][Descriptor Data][EOF]
@@ -29,6 +30,43 @@ SIFTFileLoader::SIFTFileLoader()
 
 SIFTFileLoader::SIFTFileLoader(string& siftFileName)
 {
+	string featureFG;
+	Configer::getConfiger()->getString("input", "featureFG", featureFG);
+
+	if(featureFG == "SURF")
+	{
+		FILE* file = fopen(siftFileName.c_str(), "r");	
+		//fin >> siftNum;
+		fscanf_s(file, "%d", &siftNum);
+		REPORT(siftNum);
+
+		float x, y, val;
+		allFeatVecVal.resize(siftNum);
+		for(int i = 0; i < siftNum; i++)
+		{
+			//fin >> x >> y;
+			fscanf_s(file, "%f %f", &x, &y);
+			siftAbstract oneAbs;
+			oneAbs.pos = Point2f(x, y);
+			allFeatsAbs.push_back(oneAbs);
+
+			for(int j = 0; j < 64; j++)
+			{
+				//fin >> val;
+				fscanf_s(file, "%f", &val);
+				allFeatVecVal[i].push_back(val);
+			}
+
+			trackLastFrame.push_back(-1);
+			trackNextFrame.push_back(-1);
+		}
+		
+		LOG << "-------Finish reading a surf file: " << siftFileName << '\n';
+		//fin.close();
+		return;
+	}
+	
+	//SIFT
 	FILE *f;
 	char a, b, c, d, e;
 	fstream streamF;
@@ -71,7 +109,7 @@ SIFTFileLoader::SIFTFileLoader(string& siftFileName)
 	streamF.read(&c, sizeof(a));
 	streamF.read(&a, sizeof(a));
 
-	cout << "-------Finish reading a sift file" << endl;
+	LOG << "-------Finish reading a sift file: " << siftFileName << '\n';
 	streamF.close();
 }
 
@@ -242,7 +280,7 @@ int main()
 	return 0;
 	}*/
 
-void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string& fgFolder, string& bgFolder)
+void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string& fgFolder, string& bgFolder, string& tmpFolder)
 {
 		if (!boost::filesystem::exists(fgFolder))
 			boost::filesystem::create_directories(fgFolder);
@@ -316,17 +354,15 @@ void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string&
 			imwrite(bgNameList[i], img);
 			imwrite(fgNameList[i], img);
 			
-			//tgtNameList[i] = tgtFolder + boost::filesystem::basename(imgNameList[i]) + string(".jpg");
-			string tmpShowName = boost::lexical_cast<string>(i)+string(".jpg");
-			REPORT(tmpShowName);
+			string tmpShowName = tmpFolder + string("\\") + basenameList[i];
 			cv::Mat tmpForShow;
 			img.copyTo(tmpForShow);
 			for (int k = 0; k < sfl.siftNum; k++)
 			{
 				if (!(sfl.ifInMask[k]))
-					continue;
-				cv::circle(tmpForShow, cv::Point(sfl.allFeatsAbs[k].pos.x, sfl.allFeatsAbs[k].pos.y),
-					3, cv::Scalar(0, 255, 0), 2, 8, 0);
+					cv::circle(tmpForShow, cv::Point(sfl.allFeatsAbs[k].pos.x, sfl.allFeatsAbs[k].pos.y), 3, cv::Scalar(0, 255, 0), 2, 8, 0);
+				else
+					cv::circle(tmpForShow, cv::Point(sfl.allFeatsAbs[k].pos.x, sfl.allFeatsAbs[k].pos.y), 3, cv::Scalar(0, 0, 255), 2, 8, 0);
 			}
 			cv::imwrite(tmpShowName, tmpForShow);
 		}

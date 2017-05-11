@@ -13,12 +13,13 @@ public:
 	StitchSolver();
 	void loadReconstruction();
 	void warpFgHomo();
-	cv::Mat warpOnMesh(int, bool);
+	void warpOnMesh(int, bool, vector<Mat_<Vec2f>>&);
 	void warpOnMesh();
 
 	void prepareForBundler();
 	void preprocessMask();
-	void medianFilter(cv::Mat& image, int filter);
+	void preprocessOrigin();
+	void extractFeatureFG();
 	
 	void warpMLS();
 	cv::Mat warpMLS(int, bool);
@@ -39,6 +40,7 @@ private:
 	std::string siftMaskResFolder;
 	std::string fgFolder;
 	std::string bgFolder;
+	std::string siftFolder;
 	std::string cameraList;
 	std::string bundlerRes;
 
@@ -46,6 +48,9 @@ private:
 	int FrameW, FrameH;
 
 	std::string join_path(const char*); 
+	void medianFilter(cv::Mat& image, int filter);
+	void filterDeformedMesh(vector<Mat_<Vec2f>>&);
+	void extractFeatureFG(Mat& img, Mat& mask, string featFile);
 };
 
 #endif

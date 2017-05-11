@@ -21,6 +21,7 @@ public:
 	cv::Mat mask; //points in this mask will be removed
 	vector<siftAbstract> allFeatsAbs;
 	vector<vector<unsigned char>> allFeatVecData;
+	vector<vector<float>> allFeatVecVal;
 	vector<siftAbstract> refinedFeatsAbs;
 	vector<vector<unsigned char>> refinedFeatVecData;
 	vector<int> refinedOriIDs;
@@ -38,6 +39,6 @@ public:
 
 namespace SIFTHandle{
 	void updateSIFTfolder(string& imgFolder, string& maskFolder, string& tgtFolder, vector<SIFTFileLoader>& out_AllSFL);
-	void updateSIFTfolder(string& imgFolder, string& maskFolder, string& fgFolder, string& bgFolder);
+	void updateSIFTfolder(string& imgFolder, string& maskFolder, string& fgFolder, string& bgFolder, string& tmpFolder);
 }
 

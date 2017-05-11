@@ -15,6 +15,8 @@ int main()
 	//solver.prepareForBundler();
 	solver.loadReconstruction();
 	//solver.preprocessMask();
+	//solver.preprocessOrigin();
+	//solver.extractFeatureFG();
 
 	//solver.warpFgHomo();
 	solver.warpOnMesh();

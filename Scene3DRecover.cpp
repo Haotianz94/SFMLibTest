@@ -12,23 +12,32 @@
 #include "MeanShiftLib/Include/EssentialPointSet.h"
 #include "MeanShiftLib/Include/MeanShift.h"
 */
-string NUM2TEXT(int x)
-{
-	char s[100];
-	sprintf_s(s, "%d", x);
-	return string(s);
-}
-
 
 using namespace std;
 void Scene3DRecover::getForeGround3DAllFrames()
 {
-	LOG << "Tracking Fg features in time sequence...\n\n";
-	trackForeGround(allSiftsCam1);
-	trackForeGround(allSiftsCam2);
+	LOG << "Loading Foreground features...\n\n";
+	for (int i = 0; i < matchedFramesID.size(); i++)
+	{
+		int id1 = matchedFramesID[i].first;
+		int id2 = matchedFramesID[i].second;
+	
+		SIFTFileLoader sfl1(cam1FeatFGNames[id1]);
+		allSiftsCam1.push_back(sfl1);
+	
+		SIFTFileLoader sfl2(cam2FeatFGNames[id2]);
+		allSiftsCam2.push_back(sfl2);
+	}
+
+	Configer::getConfiger()->getInt("param", "trackNum", trackNum);
+	if(trackNum != 0)
+	{
+		LOG << "Tracking Fg features in time sequence...\n\n";
+		trackForeGround(allSiftsCam1);
+		trackForeGround(allSiftsCam2);
+	}
 
 	LOG << "Recovering Fg 3D using triangulation...\n\n";
-	Configer::getConfiger()->getInt("param", "trackNum", trackNum);
 	for (int i = 0; i < matchedFramesID.size(); i++)
 	{
 		int id1 = matchedFramesID[i].first;
@@ -132,9 +141,11 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 	}
 	*/
 	
-	int id1, id2; cv::Point2f p1, p2;
 	//remove points not in tracked time sequence
-	int i = 0;
+	if(trackNum != 0)
+	{
+
+	int id1, id2, i = 0;
 	while(i < matchedFeatures.size())
 	{
 		id2 = matchedFeatures[i].trainIdx;
@@ -145,7 +156,7 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 		int trackFId1 = frameId1, trackFId2 = frameId2;
 		for(int i = 0; i < trackNum; i++)
 		{
-			if(trackFId1 >= cam1Num-trackNum || trackFId2 >= cam2Num-trackNum)
+			if(trackFId1 >= cam1Num-1 || trackFId2 >= cam2Num-1)
 				break;
 			trackedId1 = allSiftsCam1[trackFId1++].trackNextFrame[trackedId1];
 			trackedId2 = allSiftsCam2[trackFId2++].trackNextFrame[trackedId2];
@@ -159,7 +170,7 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 		trackFId1 = frameId1, trackFId2 = frameId2;
 		for(int i = 0; i < trackNum; i++)
 		{
-			if(trackFId1 < trackNum || trackFId2 < trackNum)
+			if(trackFId1 <= 0 || trackFId2 <= 0)
 				break;
 			trackedId1 = allSiftsCam1[trackFId1--].trackLastFrame[trackedId1];
 			trackedId2 = allSiftsCam2[trackFId2--].trackLastFrame[trackedId2];
@@ -174,9 +185,16 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 		else
 			++i;
 	}
+
 	LOG << "Matches after sequence tracking: " << (int)matchedFeatures.size() << "\n";
+	}
 
 	//remove outliers using homography
+	bool isRemovingOutlier;
+	Configer::getConfiger()->getBool("param", "isRemovingOutlier", isRemovingOutlier);
+	if(isRemovingOutlier && matchedFeatures.size() > 10)
+	{
+	
 	vector<Point2f> sel_kp1, sel_kp2;
 	for(auto& m : matchedFeatures)
 	{
@@ -187,7 +205,7 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 	double max_error = 400;
 	Configer::getConfiger()->getDouble("param", "max_error", max_error);
 	
-	i = 0;
+	int i = 0;
 	while(i < matchedFeatures.size())
 	{
 		int id1 = matchedFeatures[i].queryIdx;
@@ -200,9 +218,12 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 		else
 			++i;
 	}
-	LOG << "Matches after removing outliers: " << (int)matchedFeatures.size() << "\n";
 
-	cv::Point2f mp(img1.cols / 2, img1.rows / 2);
+	LOG << "Matches after removing outliers: " << (int)matchedFeatures.size() << "\n";
+	}
+
+	cv::Point2f p1, p2;
+	cv::Point2f mp(img1.cols / 2.0f, img1.rows / 2.0f);
 	for(auto& m : matchedFeatures)
 	{
 		int id1 = m.queryIdx;
@@ -241,9 +262,14 @@ void Scene3DRecover::recoverFore3D1F(vector<scenePointOnPair>& out_ScnPoints, Ca
 
 	Mat out;
 	drawMatches(img1, kp1, img2, kp2, matchedFeatures, out);
-	string matchFolder;
-	Configer::getConfiger()->getString("output", "matchFolder", matchFolder);
-	imwrite((matchFolder + NUM2TEXT(frameId1) + string(".jpg")), out);
+	string baseFolder, folder, No, Cmvs;
+	Configer::getConfiger()->getString("input", "baseFolder", baseFolder);
+	Configer::getConfiger()->getString("input", "folder", folder);
+	Configer::getConfiger()->getString("input", "No", No);
+	string matchFolder = baseFolder + folder + string("\\") + No + string("\\out\\match\\");
+	char num[10];
+	sprintf_s(num, "%d", frameId1);
+	imwrite((matchFolder + string(num) + string(".jpg")), out);
 }
 
 void Scene3DRecover::getMatchesSIFTLoader(SIFTFileLoader& sfl1, SIFTFileLoader& sfl2, vector<DMatch>& outMatch)
@@ -251,25 +277,50 @@ void Scene3DRecover::getMatchesSIFTLoader(SIFTFileLoader& sfl1, SIFTFileLoader& 
 	vector<DMatch> matches;
 	Ptr<DescriptorMatcher> descriptor_matcher = DescriptorMatcher::create("BruteForce");//创建特征匹配器  
 	Mat descriptors1, descriptors2;
-	descriptors1.create(cv::Size(128, sfl1.siftNum), CV_32F);
-	descriptors2.create(cv::Size(128, sfl2.siftNum), CV_32F);
 	
-	for (int i = 0; i < sfl1.allFeatVecData.size(); i++)
+	string featureFG;
+	Configer::getConfiger()->getString("input", "featureFG", featureFG);
+
+	if(featureFG == "SURF")
 	{
-		for (int j = 0; j < 128; j++)
+		descriptors1.create(cv::Size(64, sfl1.siftNum), CV_32F);
+		descriptors2.create(cv::Size(64, sfl2.siftNum), CV_32F);
+		for (int i = 0; i < sfl1.allFeatVecVal.size(); i++)
 		{
-	//		if (sfl1.ifInMask[i])
+			for (int j = 0; j < 64; j++)
+			{
+				descriptors1.at<float>(i, j) = sfl1.allFeatVecVal[i][j];
+			}
+		}
+		for (int i = 0; i < sfl2.allFeatVecVal.size(); i++)
+		{
+			for (int j = 0; j < 64; j++)
+			{
+				descriptors2.at<float>(i, j) = sfl2.allFeatVecVal[i][j];
+			}
+		}
+	}
+	else if(featureFG == "SIFT")
+	{
+		descriptors1.create(cv::Size(128, sfl1.siftNum), CV_32F);
+		descriptors2.create(cv::Size(128, sfl2.siftNum), CV_32F);
+		for (int i = 0; i < sfl1.allFeatVecData.size(); i++)
+		{
+			for (int j = 0; j < 128; j++)
+			{
 				descriptors1.ptr<float>(i)[j] = sfl1.allFeatVecData[i][j];
+			}
 		}
-	}
-	for (int i = 0; i < sfl2.allFeatVecData.size(); i++)
-	{
-		for (int j = 0; j < 128; j++)
+		for (int i = 0; i < sfl2.allFeatVecData.size(); i++)
 		{
-		//	if (sfl2.ifInMask[i])
+			for (int j = 0; j < 128; j++)
+			{
 				descriptors2.ptr<float>(i)[j] = sfl2.allFeatVecData[i][j];
+			}
 		}
 	}
+
+
 	descriptor_matcher->match(descriptors1, descriptors2, matches);
 	double max_dist = 0;
 	double min_dist = 100;
@@ -282,10 +333,12 @@ void Scene3DRecover::getMatchesSIFTLoader(SIFTFileLoader& sfl1, SIFTFileLoader& 
 	//cout << "最大距离：" << max_dist << endl;
 	//cout << "最小距离：" << min_dist << endl;
 
-	//筛选出较好的匹配点  
+	//筛选出较好的匹配点 
+	double siftThreshold;
+	Configer::getConfiger()->getDouble("param", "siftThreshold", siftThreshold);
 	for (int i = 0; i < matches.size(); i++)
 	{
-		if (matches[i].distance < 0.51 * max_dist)
+		if (matches[i].distance < siftThreshold * max_dist)
 		{
 			outMatch.push_back(matches[i]);
 		}
@@ -357,7 +410,7 @@ void Scene3DRecover::getMatchesSIFTLoader_Ransac(SIFTFileLoader& sfl1, SIFTFileL
 		}
 		Mat H = findHomography(sel_kp1, sel_kp2);
 		//search inlier
-		for(unsigned j = 0; j < Num; j++)
+		for(int j = 0; j < Num; j++)
 		{
 			Point2f p2_t = transform(H, kp1[matches[j].queryIdx].pt);
 			Point2f p2 = kp2[matches[j].trainIdx].pt;
@@ -408,10 +461,10 @@ void Scene3DRecover::getBackGround3DAllFrames()
 {
 	LOG << "Loading all background 3D from bundler...\n\n";
 
-	for(int i = 0; i < cam1Num; i++)
-		allBackGroundPointsCam1.push_back(vector<scenePoint>());
-	for(int i = 0; i < cam2Num; i++)
-		allBackGroundPointsCam2.push_back(vector<scenePoint>());
+	int reconFrameNum = 30;
+	Configer::getConfiger()->getInt("input", "reconFrameNum", reconFrameNum);
+	allBackGroundPointsCam1.resize(reconFrameNum);
+	allBackGroundPointsCam2.resize(reconFrameNum);
 	
 		for(auto& feat : sfmLoader.allFeats)
 			for(auto& featOneView : feat.featInAllViews)
@@ -471,9 +524,6 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 	boost::filesystem::recursive_directory_iterator end_iter;
 	for (boost::filesystem::recursive_directory_iterator iter(mainFolder); iter != end_iter; iter++)
 	{
-		if(cam1ImgNames.size() > frameNum && cam2ImgNames.size() > frameNum)
-			break;
-
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
 			string currentImageS = iter->path().filename().string();
@@ -496,28 +546,30 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 
 	}
 
-	LOG << "Loading all sift file path...\n\n";
+	
+	LOG << "Loading all foreground feature file path...\n\n";
+	string featureFG;
+	Configer::getConfiger()->getString("input", "featureFG", featureFG);
+	string extention;
+	if(featureFG == "SIFT")
+		extention = ".sift";
+	else if(featureFG == "SURF")
+		extention = ".surf";
+
 	for (boost::filesystem::recursive_directory_iterator iter(workspaceFolder); iter != end_iter; iter++)
 	{
-		if(allSiftsCam1.size() > frameNum && allSiftsCam2.size() > frameNum)
-			break;
-
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
 			string currentImageS = iter->path().filename().string();
 
-			if (iter->path().extension() == string(".sift")){
+			if (iter->path().extension() == extention){
 				if (currentImageS.find("cam1") != string::npos)
 				{
-					cam1SIFTNames.push_back(currentImagePath);
-					SIFTFileLoader sfl(currentImagePath);
-					allSiftsCam1.push_back(sfl);
+					cam1FeatFGNames.push_back(currentImagePath);
 				}
 				else if (currentImageS.find("cam2") != string::npos)
 				{
-					cam2SIFTNames.push_back(currentImagePath);
-					SIFTFileLoader sfl(currentImagePath);
-					allSiftsCam2.push_back(sfl);
+					cam2FeatFGNames.push_back(currentImagePath);
 				}
 				//	cout << "cur path" << imagePaths[imagePaths.size() - 1] << endl;
 			}
@@ -525,12 +577,10 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 
 	}
 
+
 	LOG << "Loading all mask file path...\n\n";
 	for (boost::filesystem::recursive_directory_iterator iter(maskFolder); iter != end_iter; iter++)
 	{
-		if(cam1MaskNames.size() > frameNum && cam2MaskNames.size() > frameNum)
-			break;
-
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
 			string currentImageS = iter->path().filename().string();
@@ -555,8 +605,6 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 	Mat img = imread(cam1ImgNames[0]);
 	FrameH = img.rows;
 	FrameW = img.cols;
-	cam1Num = cam1ImgNames.size();
-	cam2Num = cam2ImgNames.size();
 }
 
 void Scene3DRecover::createNewCamPath()

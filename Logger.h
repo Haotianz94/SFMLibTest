@@ -5,7 +5,7 @@
 #include <fstream>
 #include <string>
 
-
+//utility
 #define REPORT(X) *Logger::getLogger() << #X << ": " << X << "\n"
 #define PRINT(X) *Logger::getLogger() << X << "\n"
 #define REPORTP(X) printf("%.3f\n", X); 

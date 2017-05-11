@@ -37,7 +37,7 @@ public:
 
 	string sourceFolder1, targetFolder1, maskFolder1;
 	string sourceFolder2, targetFolder2, maskFolder2;
-	vector<string> cam1ImgNames, cam2ImgNames, cam1SIFTNames, cam2SIFTNames;
+	vector<string> cam1ImgNames, cam2ImgNames, cam1FeatFGNames, cam2FeatFGNames;
 	vector<string> cam1MaskNames, cam2MaskNames;
 
 	int FrameW;
@@ -52,6 +52,7 @@ public:
 	void getForeGround3DAllFrames();
 	void getBackGround3DAllFrames();
 	void trackForeGround(vector<SIFTFileLoader>&);
+	void detectFGFeature(Mat& img, vector<SIFTFileLoader>& allSiftsCam);
 	void createNewCamPath();
 
 	void getFilePaths(string&, string&);
