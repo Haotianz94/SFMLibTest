@@ -40,8 +40,9 @@ StitchSolver::StitchSolver()
 	_mkdir(bgFolder.c_str());
 	_mkdir(siftFolder.c_str());
 	_mkdir(outFolder.c_str());
-	_mkdir(join_path("warped1").c_str());
-	_mkdir(join_path("warped2").c_str());
+	_mkdir(join_path("warpedFG1").c_str());
+	_mkdir(join_path("warpedFG2").c_str());
+	_mkdir(join_path("warpedBG").c_str());
 	_mkdir(join_path("match").c_str());
 	_mkdir(join_path("mesh").c_str());
 
@@ -69,8 +70,15 @@ void StitchSolver::loadReconstruction()
 		recover.matchedFramesID.push_back(pair<int, int>(i, i));
 	recover.cam1Num = recover.cam2Num = testFrameNum;
 	//recover.matchedFramesID.push_back(pair<int, int>(0, 0));
+	//set lackFramePair
+	for(int i = 34; i < 78; i++)
+		recover.lackFramesPair.push_back(i);
+
+	bool warpFG;
+	Configer::getConfiger()->getBool("input", "warpFG", warpFG);
+	if(warpFG)
+		recover.getForeGround3DAllFrames();
 	
-	recover.getForeGround3DAllFrames();
 	recover.getBackGround3DAllFrames();
 
 	//prepare images for paper
@@ -99,20 +107,20 @@ void StitchSolver::loadReconstruction()
 	*/
 }
 
-void StitchSolver::warpOnMesh()
+void StitchSolver::warpFGOnMesh(bool isSequence1)
 {
+
 	LOG << "Warping foreground based on mesh...\n\n";
-	bool isSequence1 = true;
-	Configer::getConfiger()->getBool("input", "isSequence1", isSequence1);
 
 	vector<Mat_<Vec2f>> deformedMesh;
 	for(int i = 0; i < recover.matchedFramesID.size(); i++)
 	{
-		warpOnMesh(i, isSequence1, deformedMesh);
+		warpFGOnMesh(i, isSequence1, deformedMesh);
 		LOG << "Calculating deformed mesh for " << i << "th frame finished\n\n";
 	}
 
 	//run filter in deformed meshes
+	fillMissedMesh(isSequence1, deformedMesh);
 	filterDeformedMesh(deformedMesh);
 
 	warper = Warper(Mesh(FrameW, FrameH, GridX, GridY));
@@ -129,9 +137,10 @@ void StitchSolver::warpOnMesh()
 			origin = imread(recover.cam2ImgNames[frameId2]);
 		Mat warped(FrameH, FrameW, CV_8UC3, Scalar(255, 255, 255));
 		
+		//draw deformed mesh
+		/*
 		vector<Point2f> oriPoints;//Here is NULL
 		CVUtil::visualizeMeshAndFeatures(origin, warped, oriPoints, deformedMesh[i]);
-		//draw deformed mesh
 		string baseFolder, folder, No, Cmvs;
 		Configer::getConfiger()->getString("input", "baseFolder", baseFolder);
 		Configer::getConfiger()->getString("input", "folder", folder);
@@ -140,37 +149,43 @@ void StitchSolver::warpOnMesh()
 		char num[10];
 		sprintf_s(num, "%d", frameId1);
 		imwrite((meshFolder + string(num) + string(".jpg")), warped);
+		*/
 
 		//perform mesh based warping
 		warper.warpBilateralInterpolate(origin, deformedMesh[i], warped);
 
 		char path[100];
 		if(isSequence1)
-			sprintf_s(path, "%s\\warped1\\img%d.jpg", outFolder.c_str(), i);
+			sprintf_s(path, "%s\\warpedFG1\\img%d.jpg", outFolder.c_str(), i);
 		else
-			sprintf_s(path, "%s\\warped2\\img%d.jpg", outFolder.c_str(), i);
+			sprintf_s(path, "%s\\warpedFG2\\img%d.jpg", outFolder.c_str(), i);
 		imwrite(path, warped);
 		
 		LOG << "Warping " << i << "th frame finished\n\n";
 	}
 }
 
-void StitchSolver::warpOnMesh(int frameMatchId, bool isSequence1, vector<Mat_<Vec2f>>& deformedMesh)
+void StitchSolver::warpFGOnMesh(int frameMatchId, bool isSequence1, vector<Mat_<Vec2f>>& deformedMesh)
 {
 	int frameId1 = recover.matchedFramesID[frameMatchId].first;
 	int frameId2 = recover.matchedFramesID[frameMatchId].second;
 	int idInSFM1 = recover.frame2Cam[make_pair(1, frameId1)];
 	int idInSFM2 = recover.frame2Cam[make_pair(2, frameId2)];
 
-	vector<scenePointOnPair>& ScnPoints = recover.allForeGroundScenePoints[frameMatchId];
 	vector<Point2f> oriPoints, tgtPoints;
 	vector<Point3f> scnPoints;
-	
-	bool warpUsingFG = true;
-	Configer::getConfiger()->getBool("warp", "warpUsingFG", warpUsingFG);
+
 	//fill in foreground points
-	if(warpUsingFG)
-	{
+
+		//if there is no foreground in one frame, continue
+		if( std::find(recover.lackFramesPair.begin(), recover.lackFramesPair.end(), frameMatchId) != recover.lackFramesPair.end() )
+		{
+			Mat_<Vec2f> noneMesh;
+			deformedMesh.push_back(noneMesh);
+			return;
+		}
+		vector<scenePointOnPair>& ScnPoints = recover.allForeGroundScenePoints[frameMatchId];
+		
 		for(int k = 0; k < 1; k++)
 		{
 			for(unsigned i = 0; i < ScnPoints.size(); i++)
@@ -188,14 +203,121 @@ void StitchSolver::warpOnMesh(int frameMatchId, bool isSequence1, vector<Mat_<Ve
 				scnPoints.push_back(ScnPoints[i].scenePos);
 			}
 		}
-	}
 	LOG << "Feature points after filling FG: " << (int)oriPoints.size() << '\n';
 
-	bool warpUsingBG = true;
-	Configer::getConfiger()->getBool("warp", "warpUsingBG", warpUsingBG);
-	//fill in background points
-	if(warpUsingBG)
+	generator = ViewGenerator(oriPoints, tgtPoints, scnPoints, FrameW, FrameH, GridX, GridY);
+	//generator.getNewFeaturesPos(recover.sfmLoader.allCameras[recover.frame2Cam[make_pair(2, frameId2)]]);
+	generator.getNewFeaturesPos(recover.sfmLoader.allCameras[idInSFM1].getMedian(recover.sfmLoader.allCameras[idInSFM2]));
+	generator.getNewMesh();
+
+	deformedMesh.push_back(generator.deformedMesh);
+}
+
+void StitchSolver::warpBGOnMesh()
+{
+
+	LOG << "Warping background based on mesh...\n\n";
+
+	vector<Mat_<Vec2f>> deformedMesh1, deformedMesh2;
+	for(int i = 0; i < recover.matchedFramesID.size(); i++)
 	{
+		warpBGOnMesh(i, true, deformedMesh1);
+		warpBGOnMesh(i, false, deformedMesh2);
+		LOG << "Calculating deformed mesh for " << i << "th frame finished\n\n";
+	}
+
+	//run filter in deformed meshes
+	filterDeformedMesh(deformedMesh1);
+	filterDeformedMesh(deformedMesh2);
+
+	warper = Warper(Mesh(FrameW, FrameH, GridX, GridY));
+	for(int i = 0; i < recover.matchedFramesID.size(); i++)
+	{	
+		int frameId1 = recover.matchedFramesID[i].first;
+		int frameId2 = recover.matchedFramesID[i].second;
+		int idInSFM1 = recover.frame2Cam[make_pair(1, frameId1)];
+		int idInSFM2 = recover.frame2Cam[make_pair(2, frameId2)];
+		
+		Mat origin1, origin2;
+		origin1 = imread(recover.cam1ImgNames[frameId1]);
+		origin2 = imread(recover.cam2ImgNames[frameId2]);
+		Mat warped1(FrameH, FrameW, CV_8UC3, Scalar(0, 0, 0));
+		Mat warped2(FrameH, FrameW, CV_8UC3, Scalar(0, 0, 0));
+		
+		//draw deformed mesh
+		/*
+		vector<Point2f> oriPoints;//Here is NULL
+		CVUtil::visualizeMeshAndFeatures(origin, warped, oriPoints, deformedMesh[i]);
+		string baseFolder, folder, No, Cmvs;
+		Configer::getConfiger()->getString("input", "baseFolder", baseFolder);
+		Configer::getConfiger()->getString("input", "folder", folder);
+		Configer::getConfiger()->getString("input", "No", No);
+		string meshFolder = baseFolder + folder + string("\\") + No + string("\\out\\mesh\\");
+		char num[10];
+		sprintf_s(num, "%d", frameId1);
+		imwrite((meshFolder + string(num) + string(".jpg")), warped);
+		*/
+
+		//perform mesh based warping
+		warper.warpBilateralInterpolate(origin1, deformedMesh1[i], warped1);
+		warper.warpBilateralInterpolate(origin2, deformedMesh2[i], warped2);
+
+		//Todo: blend two backgrounds
+
+		Mat warped(FrameH*2, FrameW*2, CV_8UC3, Scalar(0, 0, 0));
+		char path[100];
+		sprintf_s(path, "%s\\warpedBG\\left_img%d.jpg", outFolder.c_str(), i);
+		imwrite(path, warped1);
+		sprintf_s(path, "%s\\warpedBG\\right_img%d.jpg", outFolder.c_str(), i);
+		imwrite(path, warped2);
+		
+		LOG << "Warping " << i << "th frame finished\n\n";
+	}
+}
+
+void StitchSolver::warpBGOnMesh(int frameMatchId, bool isSequence1, vector<Mat_<Vec2f>>& deformedMesh)
+{
+	int frameId1 = recover.matchedFramesID[frameMatchId].first;
+	int frameId2 = recover.matchedFramesID[frameMatchId].second;
+	int idInSFM1 = recover.frame2Cam[make_pair(1, frameId1)];
+	int idInSFM2 = recover.frame2Cam[make_pair(2, frameId2)];
+
+	vector<Point2f> oriPoints, tgtPoints;
+	vector<Point3f> scnPoints;
+
+	//fill in foreground points
+	/*
+		//if there is no foreground in one frame, continue
+		if( std::find(recover.lackFramesPair.begin(), recover.lackFramesPair.end(), frameMatchId) != recover.lackFramesPair.end() )
+		{
+			Mat_<Vec2f> noneMesh;
+			deformedMesh.push_back(noneMesh);
+			return;
+		}
+		vector<scenePointOnPair>& ScnPoints = recover.allForeGroundScenePoints[frameMatchId];
+		
+		for(int k = 0; k < 1; k++)
+		{
+			for(unsigned i = 0; i < ScnPoints.size(); i++)
+			{
+				if(isSequence1)
+				{
+					oriPoints.push_back(ScnPoints[i].pos2D_1);
+					tgtPoints.push_back(ScnPoints[i].pos2D_2);
+				}
+				else
+				{
+					oriPoints.push_back(ScnPoints[i].pos2D_2);
+					tgtPoints.push_back(ScnPoints[i].pos2D_1);
+				}
+				scnPoints.push_back(ScnPoints[i].scenePos);
+			}
+		}
+	LOG << "Feature points after filling FG: " << (int)oriPoints.size() << '\n';
+	*/
+
+	
+	//fill in background points
 		vector<scenePoint> BGScnPointsCam1 = recover.allBackGroundPointsCam1[frameId1];
 		vector<scenePoint> BGScnPointsCam2 = recover.allBackGroundPointsCam2[frameId2];
 		for(unsigned i = 0; i < BGScnPointsCam1.size(); i++)
@@ -218,7 +340,6 @@ void StitchSolver::warpOnMesh(int frameMatchId, bool isSequence1, vector<Mat_<Ve
 			else
 				tgtPoints.push_back(BGScnPointsCam2[i].pos2D);
 		}
-	}
 	LOG << "Feature points after filling BG: " << (int)oriPoints.size() << '\n';
 
 	generator = ViewGenerator(oriPoints, tgtPoints, scnPoints, FrameW, FrameH, GridX, GridY);
@@ -229,18 +350,60 @@ void StitchSolver::warpOnMesh(int frameMatchId, bool isSequence1, vector<Mat_<Ve
 	deformedMesh.push_back(generator.deformedMesh);
 }
 
+void StitchSolver::fillMissedMesh(bool isSequence1, vector<Mat_<Vec2f>>& deformedMesh)
+{
+	LOG << "Fill missing deformed meshes...\n\n";
+
+	//fill missing mesh
+	for(int j = 0; j < recover.lackFramesPair.size(); j++)
+	{
+		int id = recover.lackFramesPair[j];
+		int missingId = isSequence1? recover.matchedFramesID[id].first : recover.matchedFramesID[id].second;
+		int last = missingId-1, next = missingId+1;
+		int i = j-1;
+		while( i >= 0 )
+		{
+			id = recover.lackFramesPair[i];
+			int l = isSequence1? recover.matchedFramesID[id].first : recover.matchedFramesID[id].second;
+			if(l != last)
+				break;
+			else
+			{
+				last --;
+				i --;
+			}
+		}
+		i = j+1;
+		while( i < recover.lackFramesPair.size() )
+		{
+			id = recover.lackFramesPair[i];
+			int n = isSequence1? recover.matchedFramesID[id].first : recover.matchedFramesID[id].second;
+			if(n != next)
+				break;
+			else
+			{
+				next ++;
+				i ++;
+			}
+		}
+
+		Mat_<Vec2f> mesh(deformedMesh[0].rows, deformedMesh[0].cols, Vec2f(0, 0));
+		REPORT(missingId);
+		REPORT(last);
+		REPORT(next);
+		float span = next - last;
+		mesh = deformedMesh[last] * (next-missingId)/span + deformedMesh[next] * (missingId-last)/span;
+		deformedMesh[missingId] = mesh;
+	}
+}
+
 void StitchSolver::filterDeformedMesh(vector<Mat_<Vec2f>>& deformedMesh)
 {
-	LOG << "Filtering deformed meshes...\n\n";
 	//Median filter
 	int iteration = 3;
 	int step = 1;
 	Configer::getConfiger()->getInt("deformedMesh", "iteration", iteration);
 	Configer::getConfiger()->getInt("deformedMesh", "step", step);
-
-	REPORT((int)deformedMesh.size());
-	REPORT(deformedMesh[0].cols);
-	REPORT(deformedMesh[0].rows);
 
 	for(int k = 0; k < iteration; k++)
 	{
@@ -477,7 +640,6 @@ void StitchSolver::preprocessOrigin()
 
 	}
 }
-
 
 void StitchSolver::medianFilter(Mat& image, int filter)
 {

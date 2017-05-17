@@ -13,8 +13,10 @@ public:
 	StitchSolver();
 	void loadReconstruction();
 	void warpFgHomo();
-	void warpOnMesh(int, bool, vector<Mat_<Vec2f>>&);
-	void warpOnMesh();
+	void warpFGOnMesh(int, bool, vector<Mat_<Vec2f>>&);
+	void warpFGOnMesh(bool isSequence1);
+	void warpBGOnMesh(int, bool, vector<Mat_<Vec2f>>&);
+	void warpBGOnMesh();
 
 	void prepareForBundler();
 	void preprocessMask();
@@ -50,6 +52,7 @@ private:
 	std::string join_path(const char*); 
 	void medianFilter(cv::Mat& image, int filter);
 	void filterDeformedMesh(vector<Mat_<Vec2f>>&);
+	void fillMissedMesh(bool, vector<Mat_<Vec2f>>&);
 	void extractFeatureFG(Mat& img, Mat& mask, string featFile);
 };
 

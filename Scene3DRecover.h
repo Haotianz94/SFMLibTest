@@ -20,24 +20,20 @@ struct scenePoint{
 class Scene3DRecover
 {
 public:
-	string mainFolder;
-	string maskFolder;
-	string workspaceFolder;
-	int startCam2Num;
 	BundlerFileLoader sfmLoader;	//only Bg points 
 	vector<SIFTFileLoader> allSiftsCam1; //only Fg points
 	vector<SIFTFileLoader> allSiftsCam2;
 
-	vector<vector<DMatch>> siftMatches;
-	vector<pair<int, int>> matchedFramesID;
+	vector<pair<int, int>> matchedFramesID; // calibrated frame pair <frameId1, frameId2>
+	vector<int> lackFramesPair; //frame pair lack one foreground in above vector
+	
 	vector<vector<scenePointOnPair>> allForeGroundScenePoints;//ordered in matched frame, each match for one entry
 	vector<vector<scenePoint>> allBackGroundPointsCam1;
 	vector<vector<scenePoint>> allBackGroundPointsCam2;
 	vector<CameraModel> newCamPath;
 
-	string sourceFolder1, targetFolder1, maskFolder1;
-	string sourceFolder2, targetFolder2, maskFolder2;
-	vector<string> cam1ImgNames, cam2ImgNames, cam1FeatFGNames, cam2FeatFGNames;
+	vector<string> cam1ImgNames, cam2ImgNames;
+	vector<string> cam1FeatFGNames, cam2FeatFGNames;
 	vector<string> cam1MaskNames, cam2MaskNames;
 
 	int FrameW;

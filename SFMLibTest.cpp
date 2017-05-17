@@ -18,9 +18,9 @@ int main()
 	//solver.preprocessOrigin();
 	//solver.extractFeatureFG();
 
-	//solver.warpFgHomo();
-	solver.warpOnMesh();
-	//solver.warpMLS();
+	//solver.warpFGOnMesh(true);
+	//solver.warpFGOnMesh(false);
+	solver.warpBGOnMesh();
 
 	/*
 	string oriFolder = ("I:\\2016fallproject\\data\\video021_022");

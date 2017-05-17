@@ -40,15 +40,26 @@ void Scene3DRecover::getForeGround3DAllFrames()
 	LOG << "Recovering Fg 3D using triangulation...\n\n";
 	for (int i = 0; i < matchedFramesID.size(); i++)
 	{
+		vector<scenePointOnPair> ScnPoints;
+		//if there is no foreground in one frame, continue
+		if( std::find(lackFramesPair.begin(), lackFramesPair.end(), i) != lackFramesPair.end() )
+		{
+			allForeGroundScenePoints.push_back(ScnPoints);
+			continue;
+		}
+
 		int id1 = matchedFramesID[i].first;
 		int idInSFM1 = frame2Cam[make_pair(1, id1)];
 		//In the bundler file, the imgs are re-ordered according to the camera parameters
 		int id2 = matchedFramesID[i].second;
 		int idInSFM2 = frame2Cam[make_pair(2, id2)];
-		vector<scenePointOnPair> ScnPoints;
 		
 		this->recoverFore3D1F(ScnPoints, sfmLoader.allCameras[idInSFM1], sfmLoader.allCameras[idInSFM2], id1, id2);
 		allForeGroundScenePoints.push_back(ScnPoints);
+
+		//if there are not enough matched pairs in foreground 
+		if(ScnPoints.size() < 10 && i != 0 && i != matchedFramesID.size()-1)
+			lackFramesPair.push_back(i);
 		
 		LOG << "Recover Foreground 3D in "<< i << " th frame\n";
 		//break;//*************
@@ -513,10 +524,6 @@ CameraModel& Scene3DRecover::getCamModelByFrameId(int camId, int frameId)
 
 void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 {
-	workspaceFolder = mainFolder + string("");
-	if (!boost::filesystem::exists(workspaceFolder))
-		boost::filesystem::create_directories(workspaceFolder);
-
 	int frameNum = 30;
 	Configer::getConfiger()->getInt("input", "frameNum", frameNum);
 
@@ -556,7 +563,7 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 	else if(featureFG == "SURF")
 		extention = ".surf";
 
-	for (boost::filesystem::recursive_directory_iterator iter(workspaceFolder); iter != end_iter; iter++)
+	for (boost::filesystem::recursive_directory_iterator iter(mainFolder); iter != end_iter; iter++)
 	{
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
