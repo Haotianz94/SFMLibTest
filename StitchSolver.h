@@ -12,19 +12,29 @@ class StitchSolver
 public:
 	StitchSolver();
 	void loadReconstruction();
-	void warpFgHomo();
+	//read reconstructed results
+	
 	void warpFGOnMesh(int, bool, vector<Mat_<Vec2f>>&);
 	void warpFGOnMesh(bool isSequence1);
+	//warp foreground using mesh based warping 
 	void warpBGOnMesh(int, bool, vector<Mat_<Vec2f>>&);
 	void warpBGOnMesh();
+	//warp background using mesh based warping
 
 	void prepareForBundler();
+	//seprate sift into fg & bg
 	void preprocessMask();
 	void preprocessOrigin();
 	void extractFeatureFG();
+	//extract SURF feature 
+	void blendBGFG();
+	//stitch warped bg & fg results
 	
+	void warpFgHomo();
+	//warp foreground using homograhpy
 	void warpMLS();
 	cv::Mat warpMLS(int, bool);
+	//warp foreground using Moving Least Square
 
 	void testWarping(int);
 	void testWarping_middle(int);
@@ -54,6 +64,7 @@ private:
 	void filterDeformedMesh(vector<Mat_<Vec2f>>&);
 	void fillMissedMesh(bool, vector<Mat_<Vec2f>>&);
 	void extractFeatureFG(Mat& img, Mat& mask, string featFile);
+	Point2f findAnchor(Mat& img, bool isBlackBorder);
 };
 
 #endif

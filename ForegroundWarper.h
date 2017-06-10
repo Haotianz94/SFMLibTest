@@ -18,7 +18,7 @@ public:
 	void addWarpedPair(CameraModel&, std::vector<scenePointOnPair>&, cv::Mat, cv::Mat, cv::Mat, cv::Mat);
 	
 private:	
-	cv::Mat warpFgHomo(CameraModel&, std::vector<scenePointOnPair>&, std::vector<int>&, cv::Mat, cv::Mat, bool isSequence1);
+	cv::Mat warpFgHomo(CameraModel&, std::vector<scenePointOnPair>&, cv::Mat, cv::Mat, bool isSequence1);
 	Point2f transform(cv::Mat &H, cv::Point2f srcp);
 	cv::Vec3b biliner_interpolate(cv::Point2f pos, cv::Mat &img);
 };

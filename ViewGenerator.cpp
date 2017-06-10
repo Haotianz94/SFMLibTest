@@ -62,7 +62,7 @@ void ViewGenerator::warpMLS(Mat& origin, Mat& mask, Mat& out)
 		dest_points.push_back(Point(pos.x, pos.y));
 	}
 
-	CWarp* m_warping = new CMLS(src_points, dest_points);
+	CWarp* m_warping = new CMLS(dest_points, src_points);//???
 
 
 	//warp using bilinear interpolation

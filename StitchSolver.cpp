@@ -130,17 +130,24 @@ void StitchSolver::warpFGOnMesh(bool isSequence1)
 		int frameId2 = recover.matchedFramesID[i].second;
 		int idInSFM1 = recover.frame2Cam[make_pair(1, frameId1)];
 		int idInSFM2 = recover.frame2Cam[make_pair(2, frameId2)];
-		Mat origin;
+		Mat origin, mask;
 		if(isSequence1)
+		{
 			origin = imread(recover.cam1ImgNames[frameId1]);
+			mask = imread(recover.cam1MaskNames[frameId1]);
+		}
 		else
+		{
 			origin = imread(recover.cam2ImgNames[frameId2]);
-		Mat warped(FrameH, FrameW, CV_8UC3, Scalar(255, 255, 255));
+			mask = imread(recover.cam2MaskNames[frameId2]);
+		}
+		Mat warped_o(FrameH, FrameW, CV_8UC3, Scalar(0, 0, 0));
+		Mat warped_m(FrameH, FrameW, CV_8UC3, Scalar(0, 0, 0));
 		
 		//draw deformed mesh
-		/*
+		
 		vector<Point2f> oriPoints;//Here is NULL
-		CVUtil::visualizeMeshAndFeatures(origin, warped, oriPoints, deformedMesh[i]);
+		CVUtil::visualizeMeshAndFeatures(origin, warped_o, oriPoints, deformedMesh[i]);
 		string baseFolder, folder, No, Cmvs;
 		Configer::getConfiger()->getString("input", "baseFolder", baseFolder);
 		Configer::getConfiger()->getString("input", "folder", folder);
@@ -148,18 +155,27 @@ void StitchSolver::warpFGOnMesh(bool isSequence1)
 		string meshFolder = baseFolder + folder + string("\\") + No + string("\\out\\mesh\\");
 		char num[10];
 		sprintf_s(num, "%d", frameId1);
-		imwrite((meshFolder + string(num) + string(".jpg")), warped);
-		*/
+		imwrite((meshFolder + string(num) + string(".jpg")), warped_o);
+		
+		continue;
 
 		//perform mesh based warping
-		warper.warpBilateralInterpolate(origin, deformedMesh[i], warped);
+		warper.warpBilateralInterpolate(origin, deformedMesh[i], warped_o, false, true);
+		warper.warpBilateralInterpolate(mask, deformedMesh[i], warped_m, false, true);
 
-		char path[100];
+		char path_o[100], path_m[100];
 		if(isSequence1)
-			sprintf_s(path, "%s\\warpedFG1\\img%d.jpg", outFolder.c_str(), i);
+		{
+			sprintf_s(path_o, "%s\\warpedFG1\\img%d.jpg", outFolder.c_str(), i);
+			sprintf_s(path_m, "%s\\warpedFG1\\mask%d.jpg", outFolder.c_str(), i);
+		}
 		else
-			sprintf_s(path, "%s\\warpedFG2\\img%d.jpg", outFolder.c_str(), i);
-		imwrite(path, warped);
+		{
+			sprintf_s(path_o, "%s\\warpedFG2\\img%d.jpg", outFolder.c_str(), i);
+			sprintf_s(path_m, "%s\\warpedFG2\\mask%d.jpg", outFolder.c_str(), i);
+		}
+		imwrite(path_o, warped_o);
+		imwrite(path_m, warped_m);
 		
 		LOG << "Warping " << i << "th frame finished\n\n";
 	}
@@ -241,8 +257,8 @@ void StitchSolver::warpBGOnMesh()
 		Mat origin1, origin2;
 		origin1 = imread(recover.cam1ImgNames[frameId1]);
 		origin2 = imread(recover.cam2ImgNames[frameId2]);
-		Mat warped1(FrameH, FrameW, CV_8UC3, Scalar(0, 0, 0));
-		Mat warped2(FrameH, FrameW, CV_8UC3, Scalar(0, 0, 0));
+		Mat warped1(FrameH*2, FrameW*2, CV_8UC3, Scalar(0, 0, 0));
+		Mat warped2(FrameH*2, FrameW*2, CV_8UC3, Scalar(0, 0, 0));
 		
 		//draw deformed mesh
 		/*
@@ -448,10 +464,12 @@ void StitchSolver::warpFgHomo()
 			.allForeGroundScenePoints[i], origin1, origin2, mask1, mask2);
 
 		//write to img
-		string newFg1 = outFolder + string("\\newFg1.jpg");
-		string newFg2 = outFolder + string("\\newFg2.jpg");
+		string newFg1 = outFolder + string("\\homo1.jpg");
+		string newFg2 = outFolder + string("\\homo2.jpg");
+		REPORT(newFg1);
 		imwrite(newFg1, fgWarper.warpedFgCam1.back());
 		imwrite(newFg2, fgWarper.warpedFgCam2.back());
+		return;
 	}
 }
 
@@ -682,12 +700,15 @@ void StitchSolver::warpMLS()
 {
 	for(int i = 0; i < recover.matchedFramesID.size(); i++)
 	{
-		Mat warped = warpMLS(i, false);
-		char path[100];
-		sprintf_s(path, "%s\\warped1\\img%d.jpg", outFolder.c_str(), i);
-		imwrite(path, warped);
+		Mat warped1 = warpMLS(i, true);
+		Mat warped2 = warpMLS(i, false);
+		string newFg1 = outFolder + string("\\MLS1.jpg");
+		string newFg2 = outFolder + string("\\MLS2.jpg");
+		imwrite(newFg1, warped1);
+		imwrite(newFg2, warped2);
 
 		cout << "WarpOnMesh Frame: " << i << endl;
+		return;
 	}
 }
 
@@ -735,6 +756,7 @@ Mat StitchSolver::warpMLS(int frameMatchId, bool isSequence1)
 	}
 
 	//fill in background points
+	/*
 	vector<scenePoint> BGScnPointsCam1 = recover.allBackGroundPointsCam1[frameId1];
 	vector<scenePoint> BGScnPointsCam2 = recover.allBackGroundPointsCam2[frameId2];
 	for(unsigned i = 0; i < BGScnPointsCam1.size(); i++)
@@ -757,9 +779,9 @@ Mat StitchSolver::warpMLS(int frameMatchId, bool isSequence1)
 		else
 			tgtPoints.push_back(BGScnPointsCam2[i].pos2D);
 	}
-
+	*/
 	generator = ViewGenerator(oriPoints, tgtPoints, scnPoints, FrameW, FrameH, GridX, GridY);
-	
+
 	//generator.getNewFeaturesPos(recover.sfmLoader.allCameras[recover.frame2Cam[make_pair(2, frameId2)]]);
 	generator.getNewFeaturesPos(recover.sfmLoader.allCameras[idInSFM1].getMedian(recover.sfmLoader.allCameras[idInSFM2]));
 
@@ -943,4 +965,123 @@ void StitchSolver::extractFeatureFG(Mat& img, Mat& mask, string imgPath)
 			fout << descriptors.at<float>(i, j) << endl;
 	}
 	fout.close();
+}
+
+void StitchSolver::blendBGFG()
+{
+	LOG << "Blending warped foreground and background...\n";
+
+	string fgResFolder = join_path("warpedFG1");
+	string bgResFolder = join_path("warpedBG");
+
+	vector<string> warpedFgList, warpedMaskList, warpedBgList, warpedBgLeftList;
+	//read file path
+	boost::filesystem::recursive_directory_iterator end_iter;
+	for (boost::filesystem::recursive_directory_iterator iter(fgResFolder); iter != end_iter; iter++)
+	{
+		if (!boost::filesystem::is_directory(*iter)){
+			string currentImagePath = iter->path().string();
+			string currentImageS = iter->path().filename().string();
+			if (iter->path().extension() == string(".jpg") ||
+				iter->path().extension() == string(".png")){
+				if (currentImageS.find("img") != string::npos)
+				{
+					warpedFgList.push_back(currentImagePath);
+				}
+				else if (currentImageS.find("mask") != string::npos)
+				{
+					warpedMaskList.push_back(currentImagePath);
+				}
+			}
+		}
+	}
+
+	for (boost::filesystem::recursive_directory_iterator iter(bgResFolder); iter != end_iter; iter++)
+	{
+		if (!boost::filesystem::is_directory(*iter)){
+			string currentImagePath = iter->path().string();
+			string currentImageS = iter->path().filename().string();
+			if (iter->path().extension() == string(".jpg") ||
+				iter->path().extension() == string(".png")){
+				if (currentImageS.find("A") != string::npos)
+				{
+					warpedBgLeftList.push_back(currentImagePath);
+				}
+				else if (currentImageS.find("B") != string::npos)
+				{
+					continue;
+				}
+				else
+				{
+					warpedBgList.push_back(currentImagePath);
+				}
+			}
+		}
+	}
+
+	Point2f anchor_fg, anchor_bg;
+	for(unsigned fid = 0; fid < warpedFgList.size(); fid++)
+	{
+		Mat warpedFg = imread(warpedFgList[fid]);
+		Mat warpedMask = imread(warpedMaskList[fid], 0);
+		Mat warpedBg = imread(warpedBgList[fid]);
+		Mat warpedBgLeft = imread(warpedBgLeftList[fid]);
+		Mat stitchingRes = warpedBg.clone();
+
+		if(fid == 0)
+		{
+			anchor_fg = findAnchor(warpedFg, false);
+			anchor_bg = findAnchor(warpedBgLeft, true);
+		}
+		
+		//cout << anchor_fg.x << ' ' << anchor_fg.y ; 
+		//cout << anchor_bg.x << ' ' << anchor_bg.y ; 
+ 
+		//crop and copy
+		for(int y = 0; y < warpedFg.rows; y++)
+		{
+			for(int x = 0; x < warpedFg.cols; x++)
+			{
+				uchar m = warpedMask.at<uchar>(y, x);
+				if(5 < m && m < 250)
+				{
+					int destX = x - anchor_fg.x + anchor_bg.x - 60;
+					int destY = y - anchor_fg.y + anchor_bg.y + 20;
+					stitchingRes.at<Vec3b>(destY, destX) = warpedFg.at<Vec3b>(y, x);
+				}
+			}
+		}
+
+		char path_res[100];
+		sprintf_s(path_res, "%s\\final\\final%d.jpg", outFolder.c_str(), (int)fid);
+		imwrite(path_res, stitchingRes);
+		LOG << "Stitching " << fid <<"th frame finished\n";
+	}
+
+}
+
+Point2f StitchSolver::findAnchor(Mat& img, bool isBlackBorder)
+{
+	int W = img.cols;
+	int H = img.rows;
+
+	Vec3b border;
+	if(isBlackBorder)
+		border = Vec3b(0,0,0);
+	else
+		border = Vec3b(255,255,255);
+
+	for(int sum = W+H-2; sum > 0; sum--)
+	{
+		for(int x = W-1; x > 0; x--)
+		{
+			int y = sum - x;
+			if(img.at<Vec3b>(y, x) != border )
+			{
+				return Point2f(x, y);
+			}
+			if(y == H-1)
+				break;
+		}
+	}
 }
