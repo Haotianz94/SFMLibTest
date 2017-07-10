@@ -36,10 +36,6 @@ public:
 	cv::Mat warpMLS(int, bool);
 	//warp foreground using Moving Least Square
 
-	void testWarping(int);
-	void testWarping_middle(int);
-	void test();
-
 private:
 	Scene3DRecover recover;
 	ViewGenerator generator;
