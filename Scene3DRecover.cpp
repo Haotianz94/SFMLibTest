@@ -1,7 +1,6 @@
 #include "Scene3DRecover.h"
 #include "Logger.h"
 #include "Configer.h"
-
 /*
 #include "Geometry/Include/EuclideanGeometry.h"
 #include "Geometry/Include/SE3Geometry.h"
@@ -21,10 +20,11 @@ void Scene3DRecover::getForeGround3DAllFrames()
 	{
 		int id1 = matchedFramesID[i].first;
 		int id2 = matchedFramesID[i].second;
-	
+		cout << cam1FeatFGNames[id1] << endl;
 		SIFTFileLoader sfl1(cam1FeatFGNames[id1]);
 		allSiftsCam1.push_back(sfl1);
-	
+
+		cout << cam1FeatFGNames[id2] << endl;
 		SIFTFileLoader sfl2(cam2FeatFGNames[id2]);
 		allSiftsCam2.push_back(sfl2);
 	}
@@ -47,13 +47,15 @@ void Scene3DRecover::getForeGround3DAllFrames()
 			allForeGroundScenePoints.push_back(ScnPoints);
 			continue;
 		}
-
+		cout << matchedFramesID.size() << endl;
 		int id1 = matchedFramesID[i].first;
 		int idInSFM1 = frame2Cam[make_pair(1, id1)];
 		//In the bundler file, the imgs are re-ordered according to the camera parameters
 		int id2 = matchedFramesID[i].second;
 		int idInSFM2 = frame2Cam[make_pair(2, id2)];
-		
+		cout << "Frame ID pair:" << id1 << "," << id2 << endl;
+		cout << "In sfm file id: " << idInSFM1 << ", " << idInSFM2 << endl;
+		cout << sfmLoader.allCameras.size() << endl;
 		this->recoverFore3D1F(ScnPoints, sfmLoader.allCameras[idInSFM1], sfmLoader.allCameras[idInSFM2], id1, id2);
 		allForeGroundScenePoints.push_back(ScnPoints);
 
@@ -533,7 +535,13 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 	{
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
+
+#ifdef OLD_BOOST
+			string currentImageS = iter->path().filename();
+#else
 			string currentImageS = iter->path().filename().string();
+#endif
+
 			if (iter->path().extension() == string(".jpg") ||
 				iter->path().extension() == string(".png")){
 				if (currentImageS.find("cam1") != string::npos)
@@ -567,8 +575,11 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 	{
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
+#ifdef OLD_BOOST
+			string currentImageS = iter->path().filename();
+#else
 			string currentImageS = iter->path().filename().string();
-
+#endif
 			if (iter->path().extension() == extention){
 				if (currentImageS.find("cam1") != string::npos)
 				{
@@ -589,8 +600,12 @@ void Scene3DRecover::getFilePaths(string& maskFolder, string& mainFolder)
 	for (boost::filesystem::recursive_directory_iterator iter(maskFolder); iter != end_iter; iter++)
 	{
 		if (!boost::filesystem::is_directory(*iter)){
-			string currentImagePath = iter->path().string();
+			string currentImagePath = iter->path().string(); 
+#ifdef OLD_BOOST
+				string currentImageS = iter->path().filename();
+#else
 			string currentImageS = iter->path().filename().string();
+#endif
 			if (iter->path().extension() == string(".jpg") ||
 				iter->path().extension() == string(".png")){
 				if (currentImageS.find("cam1") != string::npos)
@@ -702,12 +717,16 @@ void Scene3DRecover::mapCam2Frame()
 	for(unsigned i = 0; i < cam1ImgNames.size(); i++)
 	{
 		int camId = sfmLoader.getCameraByImgName(cam1ImgNames[i]);
+		cout << cam1ImgNames[i] << endl;
 		frame2Cam.insert(make_pair(make_pair(1, i), camId));
+//		cout << "cam 1 pair: " << i << ", " << camId << endl;
 	}
 	for(unsigned i = 0; i < cam2ImgNames.size(); i++)
 	{
 		int camId = sfmLoader.getCameraByImgName(cam2ImgNames[i]);
+		cout << cam2ImgNames[i] << endl;
 		frame2Cam.insert(make_pair(make_pair(2, i), camId));
+//		cout << "cam 2 pair: " << i << ", " << camId << endl;
 	}
 
 	for(auto& pair : frame2Cam)

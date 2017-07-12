@@ -141,9 +141,12 @@ void StitchSolver::warpFGOnMesh(bool isSequence1)
 		string meshFolder = baseFolder + folder + string("\\") + No + string("\\out\\mesh\\");
 		char num[10];
 		sprintf_s(num, "%d", frameId1);
-		imwrite((meshFolder + string(num) + string(".jpg")), warped_o);
+		if (isSequence1)
+			imwrite((meshFolder + string(num) + string("_cam1.jpg")), warped_o);
+		else
+			imwrite((meshFolder + string(num) + string("_cam2.jpg")), warped_o);
 		
-		continue;
+	//	continue;
 
 		//perform mesh based warping
 		warper.warpBilateralInterpolate(origin, deformedMesh[i], warped_o, false, true);
@@ -240,10 +243,17 @@ void StitchSolver::warpBGOnMesh()
 		int idInSFM2 = recover.frame2Cam[make_pair(2, frameId2)];
 		
 		Mat origin1, origin2;
+		Mat mask1, mask2;
 		origin1 = imread(recover.cam1ImgNames[frameId1]);
 		origin2 = imread(recover.cam2ImgNames[frameId2]);
+		mask1 = imread(recover.cam1MaskNames[frameId1], 1);
+		mask2 = imread(recover.cam2MaskNames[frameId2], 1);
 		Mat warped1(FrameH*2, FrameW*2, CV_8UC3, Scalar(0, 0, 0));
 		Mat warped2(FrameH*2, FrameW*2, CV_8UC3, Scalar(0, 0, 0));
+
+
+		Mat warpedMask1(FrameH * 2, FrameW * 2, CV_8UC3, Scalar(0, 0, 0));
+		Mat warpedMask2(FrameH * 2, FrameW * 2, CV_8UC3, Scalar(0, 0, 0));
 		
 		//draw deformed mesh
 		/*
@@ -262,6 +272,8 @@ void StitchSolver::warpBGOnMesh()
 		//perform mesh based warping
 		warper.warpBilateralInterpolate(origin1, deformedMesh1[i], warped1);
 		warper.warpBilateralInterpolate(origin2, deformedMesh2[i], warped2);
+		warper.warpBilateralInterpolate(mask1, deformedMesh1[i], warpedMask1);
+		warper.warpBilateralInterpolate(mask2, deformedMesh2[i], warpedMask2);
 
 		//Todo: blend two backgrounds
 
@@ -271,6 +283,12 @@ void StitchSolver::warpBGOnMesh()
 		imwrite(path, warped1);
 		sprintf_s(path, "%s\\warpedBG\\right_img%d.jpg", outFolder.c_str(), i);
 		imwrite(path, warped2);
+
+
+		sprintf_s(path, "%s\\warpedBG\\left_mask%d.jpg", outFolder.c_str(), i);
+		imwrite(path, warpedMask1);
+		sprintf_s(path, "%s\\warpedBG\\right_mask%d.jpg", outFolder.c_str(), i);
+		imwrite(path, warpedMask2);
 		
 		LOG << "Warping " << i << "th frame finished\n\n";
 	}
@@ -856,8 +874,12 @@ void StitchSolver::blendBGFG()
 	for (boost::filesystem::recursive_directory_iterator iter(fgResFolder); iter != end_iter; iter++)
 	{
 		if (!boost::filesystem::is_directory(*iter)){
-			string currentImagePath = iter->path().string();
+			string currentImagePath = iter->path().string(); 
+#ifdef OLD_BOOST
+				string currentImageS = iter->path().filename();
+#else
 			string currentImageS = iter->path().filename().string();
+#endif
 			if (iter->path().extension() == string(".jpg") ||
 				iter->path().extension() == string(".png")){
 				if (currentImageS.find("img") != string::npos)
@@ -876,7 +898,11 @@ void StitchSolver::blendBGFG()
 	{
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
+#ifdef OLD_BOOST
+			string currentImageS = iter->path().filename();
+#else
 			string currentImageS = iter->path().filename().string();
+#endif
 			if (iter->path().extension() == string(".jpg") ||
 				iter->path().extension() == string(".png")){
 				if (currentImageS.find("A") != string::npos)

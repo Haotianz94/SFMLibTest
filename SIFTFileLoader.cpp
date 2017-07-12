@@ -297,11 +297,20 @@ void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string&
 		{
 			if (!boost::filesystem::is_directory(*iter)){
 				string currentImagePath = iter->path().string();
+#ifdef OLD_BOOST
+				string currentImageS = iter->path().filename();
+#else
 				string currentImageS = iter->path().filename().string();
+#endif
 				if (iter->path().extension() == string(".jpg") ||
 					iter->path().extension() == string(".png")){
 					imgNameList.push_back(currentImagePath);
+#ifdef OLD_BOOST
+
+					basenameList.push_back(iter->path().filename());
+#else
 					basenameList.push_back(iter->path().filename().string());
+#endif
 					//	cout << "cur path" << imagePaths[imagePaths.size() - 1] << endl;
 					
 				}
@@ -317,7 +326,12 @@ void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string&
 		{
 			if (!boost::filesystem::is_directory(*iter)){
 				string currentImagePath = iter->path().string();
+
+#ifdef OLD_BOOST
+				string currentImageS = iter->path().filename();
+#else
 				string currentImageS = iter->path().filename().string();
+#endif
 				if (iter->path().extension() == string(".jpg") ||
 					iter->path().extension() == string(".png")){
 					maskNameList.push_back(currentImagePath);
@@ -382,12 +396,21 @@ void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string&
 	for (boost::filesystem::recursive_directory_iterator iter(imgFolder); iter != end_iter; iter++)
 	{
 		if (!boost::filesystem::is_directory(*iter)){
-			string currentImagePath = iter->path().string();
+			string currentImagePath = iter->path().string(); 
+#ifdef OLD_BOOST
+				string currentImageS = iter->path().filename();
+#else
 			string currentImageS = iter->path().filename().string();
+#endif
 			if (iter->path().extension() == string(".jpg") ||
 				iter->path().extension() == string(".png")){
 				imgNameList.push_back(currentImagePath);
+#ifdef OLD_BOOST
+				basenameList.push_back(iter->path().filename());
+#else
 				basenameList.push_back(iter->path().filename().string());
+#endif
+				
 				//	cout << "cur path" << imagePaths[imagePaths.size() - 1] << endl;
 
 			}
@@ -403,7 +426,11 @@ void SIFTHandle::updateSIFTfolder(string& imgFolder, string& maskFolder, string&
 	{
 		if (!boost::filesystem::is_directory(*iter)){
 			string currentImagePath = iter->path().string();
+#ifdef OLD_BOOST
+			string currentImageS = iter->path().filename();
+#else
 			string currentImageS = iter->path().filename().string();
+#endif
 			if (iter->path().extension() == string(".jpg") ||
 				iter->path().extension() == string(".png")){
 				maskNameList.push_back(currentImagePath);

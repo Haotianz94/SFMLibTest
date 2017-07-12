@@ -22,4 +22,3 @@ namespace CameraHelper
 		Matx34d P1//camera 2 matrix  
 		);
 };
-

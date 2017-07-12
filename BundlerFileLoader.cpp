@@ -239,11 +239,12 @@ void BundlerFileLoader::init(string& cameraFileName, string& bundlerFileName)
 int BundlerFileLoader::getCameraByImgName(string& imgName)
 {
 	int x = -1;
+//	cout << viewImgFileName.size() << endl;
 	for (int i = 0; i < viewImgFileName.size(); i++)
 	{
 		string substr1 = viewImgFileName[i].substr(viewImgFileName[i].length() - 10, viewImgFileName[i].length() - 1);
 		string substr2 = imgName.substr(imgName.length()-10, imgName.length()-1);
-		//cout << substr1 << ' ' << substr2 << endl;
+//		cout << substr1 << ' ' << substr2 << endl;
 		if (substr1 == substr2)
 		{
 			x = i;

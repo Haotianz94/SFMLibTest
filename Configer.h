@@ -1,6 +1,8 @@
 #ifndef _CONFIGER_H_
 #define _CONFIGER_H_
 
+#define OLD_BOOST
+
 #include <string>
 #include <vector>
 
